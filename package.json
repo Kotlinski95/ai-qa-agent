@@ -1,0 +1,17 @@
+{
+  "name": "ai-qa-agent",
+  "version": "1.0.0",
+  "description": "AI QA Agent Lambda Function",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.143",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {}
+}

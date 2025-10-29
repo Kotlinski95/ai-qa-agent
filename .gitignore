@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# TypeScript
+*.tsbuildinfo
+
+# Environment variables
+.env
+.env.local
+
+# IDE
+.vscode/settings.json
+
+# AWS
+.aws-sam/
+
+# Logs
+*.log
+npm-debug.log*
