@@ -1,4 +1,4 @@
-import { handler } from './dist/index.js';
+import { handler } from '../../dist/index.js';
 
 // Mock health check event
 const healthCheckEvent = {

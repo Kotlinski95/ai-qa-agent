@@ -1,5 +1,5 @@
 import { ChatOpenAI } from '@langchain/openai';
-import { HumanMessage, SystemMessage } from '@langchain/core/messages';
+import { HumanMessage, SystemMessage, AIMessage } from '@langchain/core/messages';
 import { StringOutputParser } from '@langchain/core/output_parsers';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
 import { config } from '../config/index.js';
@@ -161,7 +161,7 @@ export async function generateAnswerWithHistory(
     const chatModel = createChatModel();
 
     // Build messages array
-    const messages = [
+    const messages: (SystemMessage | HumanMessage | AIMessage)[] = [
       new SystemMessage(config.ai.systemPrompt),
     ];
 
@@ -170,7 +170,7 @@ export async function generateAnswerWithHistory(
       if (msg.role === 'human') {
         messages.push(new HumanMessage(msg.content));
       } else {
-        messages.push(new SystemMessage(msg.content)); // AI messages as system for context
+        messages.push(new AIMessage(msg.content)); // AI messages as AIMessage, not SystemMessage
       }
     });
 

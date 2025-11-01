@@ -11,7 +11,9 @@
     "start:local": "npm run build && node dev-server.js",
     "start:sam": "npm run build && sam local start-api --port 3000",
     "test:local": "npm run build && node test-local.js",
-    "test:health": "npm run build && node test-health.js"
+    "test:health": "npm run build && node src/tests/test-health.js",
+    "cache:clear": "npm run build && node dist/utils/check-duplicates.js clear",
+    "cache:check": "npm run build && node dist/utils/check-duplicates.js check"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.143",
@@ -19,9 +21,11 @@
     "typescript": "^5.0.0"
   },
   "dependencies": {
-    "@langchain/core": "^0.3.29",
-    "@langchain/langgraph": "^0.2.24",
-    "@langchain/openai": "^0.3.17",
+    "@langchain/core": "^1.0.2",
+    "@langchain/langgraph": "^1.0.1",
+    "@langchain/openai": "^1.0.0",
+    "@langchain/pinecone": "^1.0.0",
+    "@pinecone-database/pinecone": "^6.1.2",
     "dotenv": "^17.2.3",
     "langchain": "^0.3.9",
     "node-fetch": "^3.3.2",

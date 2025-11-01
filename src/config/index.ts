@@ -54,12 +54,50 @@ export const config = {
       enableMemory: process.env.LANGGRAPH_ENABLE_MEMORY === 'true',
     },
     
-    // Agent Configuration
-    agent: {
-      enableWebScraping: process.env.AGENT_ENABLE_WEB_SCRAPING === 'true',
-      websiteTimeout: parseInt(process.env.AGENT_WEBSITE_TIMEOUT_MS || '10000'),
-      maxWebsiteContentLength: parseInt(process.env.AGENT_MAX_WEBSITE_CONTENT || '3000'),
-      websiteUserAgent: process.env.AGENT_WEBSITE_USER_AGENT || 'Mozilla/5.0 (compatible; AI-QA-Agent/1.0)',
+    // Agent Configuration - use getter to read values dynamically
+    get agent() {
+      return {
+        get enableWebScraping() {
+          return process.env.AGENT_ENABLE_WEB_SCRAPING === 'true';
+        },
+        get websiteTimeout() {
+          return parseInt(process.env.AGENT_WEBSITE_TIMEOUT_MS || '10000');
+        },
+        get maxWebsiteContentLength() {
+          return parseInt(process.env.AGENT_MAX_WEBSITE_CONTENT || '3000');
+        },
+        get websiteUserAgent() {
+          return process.env.AGENT_WEBSITE_USER_AGENT || 'Mozilla/5.0 (compatible; AI-QA-Agent/1.0)';
+        },
+        // Website sitemap search configuration
+        get sitemapUrl() {
+          return process.env.WEBSITE_SITEMAP_URL || '';
+        },
+        get websiteSearchEnabled() {
+          return process.env.WEBSITE_SEARCH_ENABLED === 'true';
+        },
+        get maxPagesToSearch() {
+          return parseInt(process.env.WEBSITE_MAX_PAGES_TO_SEARCH || '20');
+        }
+      };
+    },
+
+    // Pinecone Configuration - use getter to read values dynamically
+    get pinecone() {
+      return {
+        get apiKey() {
+          return process.env.PINECONE_API_KEY || '';
+        },
+        get indexName() {
+          return process.env.PINECONE_INDEX_NAME || 'website-content';
+        },
+        get namespace() {
+          return process.env.PINECONE_NAMESPACE || '';
+        },
+        get cacheDurationHours() {
+          return parseInt(process.env.PINECONE_CACHE_DURATION_HOURS || '24');
+        }
+      };
     },
     
     // General AI settings
