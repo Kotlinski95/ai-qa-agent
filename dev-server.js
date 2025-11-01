@@ -119,6 +119,12 @@ async function processRequest(req, res, body) {
       await handleStreamingRequest(req, res, parsedUrl.query);
       return;
     }
+
+    // Handle LangGraph Agent streaming with SSE
+    if (parsedUrl.pathname === '/agent/stream') {
+      await handleAgentStreamingRequest(req, res, body, parsedUrl.query);
+      return;
+    }
     
     // Convert HTTP request to API Gateway event
     const event = httpToApiGatewayEvent(req, body);
@@ -139,6 +145,149 @@ async function processRequest(req, res, body) {
       error: 'Lambda handler error',
       message: error.message 
     }));
+  }
+}
+
+// Handle LangGraph Agent streaming with SSE
+async function handleAgentStreamingRequest(req, res, body, queryParams) {
+  try {
+    const { sanitizeString } = await import('./dist/utils/sanitizers.js');
+    const { createSessionAgent } = await import('./dist/services/langgraph-agent.js');
+    
+    // Extract parameters
+    let question;
+    let sessionId;
+
+    if (req.method === 'GET') {
+      question = sanitizeString((queryParams && queryParams.question) || '');
+      sessionId = sanitizeString((queryParams && queryParams.sessionId) || `session-${Date.now()}`);
+    } else {
+      const bodyObj = body ? JSON.parse(body) : {};
+      question = sanitizeString(bodyObj.question || '');
+      sessionId = sanitizeString(bodyObj.sessionId || `session-${Date.now()}`);
+    }
+
+    if (!question) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Question is required' }));
+      return;
+    }
+
+    // Set SSE headers
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    });
+
+    console.log(`🔄 Starting agent SSE stream for: ${question.substring(0, 50)}...`);
+
+    // Send initial event
+    res.write(`data: ${JSON.stringify({
+      type: 'start',
+      sessionId,
+      question,
+      timestamp: new Date().toISOString()
+    })}\n\n`);
+
+    // Monitor connection
+    const connectionClosed = { value: false };
+    
+    req.on('close', () => {
+      console.log('🔌 Agent SSE client disconnected');
+      connectionClosed.value = true;
+    });
+
+    req.on('error', (error) => {
+      console.error('❌ Agent SSE connection error:', error);
+      connectionClosed.value = true;
+    });
+
+    try {
+      // Get or create agent session
+      const agent = createSessionAgent(sessionId);
+      
+      let chunkIndex = 0;
+      let fullAnswer = '';
+      const chunks = [];
+
+      // Stream chunks
+      for await (const chunk of agent.askStream(question)) {
+        if (connectionClosed.value) {
+          console.log('🛑 Client disconnected, stopping agent stream');
+          break;
+        }
+
+        chunks.push(chunk);
+        fullAnswer += chunk;
+        
+        try {
+          res.write(`data: ${JSON.stringify({
+            type: 'chunk',
+            index: chunkIndex,
+            chunk,
+            progress: Math.round(((chunkIndex + 1) / 155) * 100), // Estimate based on typical chunks
+          })}\n\n`);
+          
+          chunkIndex++;
+          
+          // Small delay to make streaming visible
+          await new Promise(resolve => setTimeout(resolve, 30));
+        } catch (writeError) {
+          console.error('❌ Failed to write agent SSE chunk:', writeError);
+          connectionClosed.value = true;
+          break;
+        }
+      }
+
+      // Send completion event if connection still open
+      if (!connectionClosed.value) {
+        try {
+          res.write(`data: ${JSON.stringify({
+            type: 'complete',
+            sessionId,
+            answer: fullAnswer,
+            totalChunks: chunks.length,
+            totalLength: fullAnswer.length,
+            timestamp: new Date().toISOString()
+          })}\n\n`);
+          
+          res.write('event: done\ndata: null\n\n');
+
+          console.log(`✅ Agent SSE stream completed - ${chunks.length} chunks`);
+        } catch (endError) {
+          console.error('❌ Failed to send agent completion:', endError);
+        }
+      } else {
+        console.log('🔌 Agent stream ended due to client disconnect');
+      }
+
+    } catch (error) {
+      console.error('❌ Agent streaming error:', error);
+      if (!connectionClosed.value) {
+        try {
+          res.write(`data: ${JSON.stringify({
+            type: 'error',
+            error: error.message || 'Agent streaming failed'
+          })}\n\n`);
+        } catch (writeError) {
+          console.error('❌ Failed to send agent error message:', writeError);
+        }
+      }
+    }
+
+    // End response if still open
+    if (!connectionClosed.value) {
+      res.end();
+    }
+
+  } catch (error) {
+    console.error('❌ Agent SSE setup error:', error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Agent streaming setup failed' }));
   }
 }
 
@@ -291,7 +440,15 @@ server.listen(PORT, () => {
   console.log(`   POST http://localhost:${PORT}/qa/stream - Ask a question (streaming SSE)`);
   console.log(`   POST http://localhost:${PORT}/qa - Ask a question`);
   console.log(`   POST http://localhost:${PORT}/ - Ask a question (root)`);
+  console.log(`\n🤖 LangGraph Agent Endpoints:`);
+  console.log(`   POST http://localhost:${PORT}/agent/chat - Chat with agent`);
+  console.log(`   POST http://localhost:${PORT}/agent/stream - Stream responses from agent`);
+  console.log(`   GET  http://localhost:${PORT}/agent/history - Get conversation history`);
+  console.log(`   DEL  http://localhost:${PORT}/agent/session/:sessionId - Clear session`);
   console.log(`\n📚 Import the Postman collection: postman-collection.json`);
+  console.log(`🌐 Web interfaces:`);
+  console.log(`   http://localhost:${PORT}/index.html - Classic QA interface`);
+  console.log(`   http://localhost:${PORT}/agent-interface.html - LangGraph Agent interface`);
   
   if (isConfigured) {
     console.log(`\n✅ OpenAI integration: READY`);

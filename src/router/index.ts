@@ -8,6 +8,12 @@ import { logger } from '../utils/logger.js';
 import { healthHandler } from '../handlers/health.js';
 import { qaHandler } from '../handlers/qa.js';
 import { qaStreamHandler } from '../handlers/qa-stream.js';
+import {
+  agentChatHandler,
+  agentStreamHandler,
+  agentHistoryHandler,
+  agentSessionClearHandler,
+} from '../handlers/agent.js';
 
 /**
  * Application routes registry
@@ -21,11 +27,18 @@ function initializeRoutes(): void {
   // Health check route
   addRoute(HttpMethod.GET, '/health', healthHandler);
   
-  // QA routes
+  // QA routes (legacy)
   addRoute(HttpMethod.GET, '/qa/stream', qaStreamHandler);
   addRoute(HttpMethod.POST, '/qa/stream', qaStreamHandler);
   addRoute(HttpMethod.POST, '/qa', qaHandler);
   addRoute(HttpMethod.POST, '/', qaHandler);
+
+  // LangGraph Agent routes (new)
+  addRoute(HttpMethod.POST, '/agent/chat', agentChatHandler);
+  addRoute(HttpMethod.POST, '/agent/stream', agentStreamHandler);
+  addRoute(HttpMethod.GET, '/agent/stream', agentStreamHandler);
+  addRoute(HttpMethod.GET, '/agent/history', agentHistoryHandler);
+  addRoute(HttpMethod.DELETE, /^\/agent\/session\/(.+)$/, agentSessionClearHandler);
   
   logger.debug('Routes initialized', {
     routeCount: routes.length,

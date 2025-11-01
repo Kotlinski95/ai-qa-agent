@@ -1,0 +1,221 @@
+{
+  "info": {
+    "_postman_id": "langgraph-agent-collection",
+    "name": "LangGraph AI Agent",
+    "description": "Test the LangGraph AI Agent with web scraping capabilities",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:3000/health",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3000",
+          "path": ["health"]
+        }
+      }
+    },
+    {
+      "name": "Agent - Simple Question",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"question\": \"What is TypeScript and why should I use it?\",\n  \"sessionId\": \"postman-session-1\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:3000/agent/chat",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3000",
+          "path": ["agent", "chat"]
+        }
+      }
+    },
+    {
+      "name": "Agent - Website Question",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"question\": \"What does OpenAI offer? Check https://openai.com to get the latest information.\",\n  \"sessionId\": \"postman-session-1\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:3000/agent/chat",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3000",
+          "path": ["agent", "chat"]
+        }
+      }
+    },
+    {
+      "name": "Agent - Multi-turn Conversation 1",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"question\": \"What is AI?\",\n  \"sessionId\": \"postman-session-2\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:3000/agent/chat",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3000",
+          "path": ["agent", "chat"]
+        }
+      }
+    },
+    {
+      "name": "Agent - Multi-turn Conversation 2",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"question\": \"Tell me more about practical applications\",\n  \"sessionId\": \"postman-session-2\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:3000/agent/chat",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3000",
+          "path": ["agent", "chat"]
+        }
+      }
+    },
+    {
+      "name": "Agent - Stream Response",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"question\": \"Explain machine learning in simple terms\",\n  \"sessionId\": \"postman-session-3\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:3000/agent/stream",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3000",
+          "path": ["agent", "stream"]
+        }
+      }
+    },
+    {
+      "name": "Agent - Get History",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:3000/agent/history?sessionId=postman-session-2",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3000",
+          "path": ["agent", "history"],
+          "query": [
+            {
+              "key": "sessionId",
+              "value": "postman-session-2"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Agent - Clear Session",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:3000/agent/session/postman-session-1",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3000",
+          "path": ["agent", "session", "postman-session-1"]
+        }
+      }
+    },
+    {
+      "name": "Legacy QA - Streaming",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "http://localhost:3000/qa/stream?question=What is a REST API?",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3000",
+          "path": ["qa", "stream"],
+          "query": [
+            {
+              "key": "question",
+              "value": "What is a REST API?"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Legacy QA - Regular",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"question\": \"What is a REST API?\",\n  \"context\": \"\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:3000/qa",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3000",
+          "path": ["qa"]
+        }
+      }
+    }
+  ]
+}

@@ -54,6 +54,14 @@ export const config = {
       enableMemory: process.env.LANGGRAPH_ENABLE_MEMORY === 'true',
     },
     
+    // Agent Configuration
+    agent: {
+      enableWebScraping: process.env.AGENT_ENABLE_WEB_SCRAPING === 'true',
+      websiteTimeout: parseInt(process.env.AGENT_WEBSITE_TIMEOUT_MS || '10000'),
+      maxWebsiteContentLength: parseInt(process.env.AGENT_MAX_WEBSITE_CONTENT || '3000'),
+      websiteUserAgent: process.env.AGENT_WEBSITE_USER_AGENT || 'Mozilla/5.0 (compatible; AI-QA-Agent/1.0)',
+    },
+    
     // General AI settings
     systemPrompt: process.env.AI_SYSTEM_PROMPT || 'You are a helpful AI assistant that provides accurate and concise answers to questions.',
     enableStreaming: process.env.AI_ENABLE_STREAMING === 'true',

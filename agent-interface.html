@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LangGraph AI Agent - Test Interface</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 1000px;
+            height: 90vh;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: row;
+            overflow: hidden;
+        }
+
+        .sidebar {
+            width: 250px;
+            background: #f8f9fa;
+            border-right: 1px solid #e1e5e9;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar h3 {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+        }
+
+        .session-info {
+            background: white;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            font-size: 0.85rem;
+        }
+
+        .session-info label {
+            display: block;
+            color: #666;
+            margin-bottom: 4px;
+        }
+
+        .session-info .value {
+            color: #667eea;
+            font-family: 'Courier New', monospace;
+            font-size: 0.8rem;
+            word-break: break-all;
+        }
+
+        .chat-main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .chat-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chat-header-title {
+            text-align: center;
+            flex: 1;
+        }
+
+        .chat-header h1 {
+            font-size: 1.5rem;
+            margin-bottom: 5px;
+        }
+
+        .chat-header p {
+            opacity: 0.9;
+            font-size: 0.9rem;
+        }
+
+        .mode-switcher {
+            display: flex;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 25px;
+            padding: 4px;
+            gap: 4px;
+        }
+
+        .mode-toggle {
+            padding: 8px 16px;
+            border: none;
+            background: transparent;
+            color: white;
+            cursor: pointer;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .mode-toggle.active {
+            background: white;
+            color: #667eea;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .mode-toggle:hover:not(.active) {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #f8f9fa;
+        }
+
+        .message {
+            margin-bottom: 20px;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.user {
+            flex-direction: row-reverse;
+        }
+
+        .message-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: white;
+            font-size: 0.85rem;
+            flex-shrink: 0;
+        }
+
+        .message.user .message-avatar {
+            background: #667eea;
+        }
+
+        .message.ai .message-avatar {
+            background: #764ba2;
+        }
+
+        .message.system .message-avatar {
+            background: #17a2b8;
+        }
+
+        .message-content {
+            max-width: 65%;
+            padding: 12px 16px;
+            border-radius: 12px;
+            line-height: 1.5;
+            word-wrap: break-word;
+            font-size: 0.95rem;
+        }
+
+        .message.user .message-content {
+            background: #667eea;
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        .message.ai .message-content {
+            background: white;
+            color: #333;
+            border: 1px solid #e1e5e9;
+            border-bottom-left-radius: 4px;
+        }
+
+        .message.system .message-content {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .message-meta {
+            font-size: 0.75rem;
+            color: #888;
+            margin-top: 4px;
+        }
+
+        .chat-input-container {
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #e1e5e9;
+        }
+
+        .chat-input-form {
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+        }
+
+        .input-wrapper {
+            flex: 1;
+            position: relative;
+        }
+
+        .chat-input {
+            width: 100%;
+            min-height: 40px;
+            max-height: 100px;
+            padding: 10px 12px;
+            border: 2px solid #e1e5e9;
+            border-radius: 20px;
+            font-size: 0.95rem;
+            font-family: inherit;
+            resize: none;
+            outline: none;
+            transition: border-color 0.2s ease;
+        }
+
+        .chat-input:focus {
+            border-color: #667eea;
+        }
+
+        .chat-input:disabled {
+            background: #f5f5f5;
+            cursor: not-allowed;
+        }
+
+        .send-button {
+            width: 40px;
+            height: 40px;
+            border: none;
+            border-radius: 50%;
+            background: #667eea;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+        }
+
+        .send-button:hover:not(:disabled) {
+            background: #5a67d8;
+            transform: scale(1.05);
+        }
+
+        .send-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .typing-indicator {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px 20px;
+            background: #f8f9fa;
+        }
+
+        .typing-dots {
+            display: flex;
+            gap: 4px;
+        }
+
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ccc;
+            animation: typing 1.4s infinite;
+        }
+
+        .typing-dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .typing-dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes typing {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-10px); }
+        }
+
+        .welcome-message {
+            text-align: center;
+            color: #666;
+            padding: 40px 20px;
+        }
+
+        .welcome-message h3 {
+            margin-bottom: 8px;
+            color: #333;
+        }
+
+        .welcome-message p {
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        .cursor {
+            animation: blink 1s infinite;
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                width: 100%;
+                border-right: none;
+                border-bottom: 1px solid #e1e5e9;
+                height: auto;
+                max-height: 150px;
+                padding: 12px;
+            }
+
+            .message-content {
+                max-width: 85%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <div>
+                <h3>Session</h3>
+                <div class="session-info">
+                    <label>Session ID:</label>
+                    <div class="value" id="sessionId">Loading...</div>
+                </div>
+                <div class="session-info">
+                    <label>Messages:</label>
+                    <div class="value" id="messageCount">0</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="chat-main">
+            <div class="chat-header">
+                <div class="chat-header-title">
+                    <h1>🤖 LangGraph AI Agent</h1>
+                    <p>Intelligent agent with web scraping capabilities</p>
+                </div>
+                <div class="mode-switcher">
+                    <button class="mode-toggle active" id="chatModeBtn" data-mode="chat">💬 Chat</button>
+                    <button class="mode-toggle" id="streamModeBtn" data-mode="stream">🌊 Stream</button>
+                </div>
+            </div>
+
+            <div class="chat-messages" id="chatMessages">
+                <div class="welcome-message">
+                    <h3>👋 Welcome to LangGraph AI Agent</h3>
+                    <p>I'm an intelligent agent powered by LangChain and LangGraph.</p>
+                    <p>Try asking me questions or requesting me to fetch information from websites.</p>
+                </div>
+            </div>
+
+            <div class="typing-indicator" id="typingIndicator" style="display: none;">
+                <div class="message-avatar">🤖</div>
+                <div class="typing-dots">
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                </div>
+            </div>
+
+            <div class="chat-input-container">
+                <form class="chat-input-form" id="chatForm">
+                    <div class="input-wrapper">
+                        <textarea 
+                            id="chatInput" 
+                            class="chat-input" 
+                            placeholder="Ask me anything or request to fetch website data..." 
+                            rows="1"
+                            maxlength="500"
+                        ></textarea>
+                    </div>
+                    <button type="submit" class="send-button" id="sendButton">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="22" y1="2" x2="11" y2="13"></line>
+                            <polygon points="22,2 15,22 11,13 2,9"></polygon>
+                        </svg>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class LangGraphAgentInterface {
+            constructor() {
+                this.apiUrl = 'http://localhost:3000';
+                this.sessionId = this.generateSessionId();
+                this.chatMessages = document.getElementById('chatMessages');
+                this.chatForm = document.getElementById('chatForm');
+                this.chatInput = document.getElementById('chatInput');
+                this.sendButton = document.getElementById('sendButton');
+                this.typingIndicator = document.getElementById('typingIndicator');
+                this.sessionIdDisplay = document.getElementById('sessionId');
+                this.messageCountDisplay = document.getElementById('messageCount');
+                this.chatModeBtn = document.getElementById('chatModeBtn');
+                this.streamModeBtn = document.getElementById('streamModeBtn');
+
+                this.messageCount = 0;
+                this.isConnected = false;
+                this.mode = 'chat'; // 'chat' or 'stream'
+
+                this.init();
+            }
+
+            generateSessionId() {
+                return `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            }
+
+            init() {
+                this.sessionIdDisplay.textContent = this.sessionId;
+                this.setupEventListeners();
+                this.checkConnection();
+                this.autoResizeTextarea();
+            }
+
+            setupEventListeners() {
+                this.chatForm.addEventListener('submit', (e) => this.handleSubmit(e));
+                this.chatInput.addEventListener('keydown', (e) => this.handleKeydown(e));
+                this.chatInput.addEventListener('input', () => this.autoResizeTextarea());
+                
+                // Mode switching
+                this.chatModeBtn.addEventListener('click', () => this.setMode('chat'));
+                this.streamModeBtn.addEventListener('click', () => this.setMode('stream'));
+            }
+
+            setMode(newMode) {
+                if (this.mode === newMode) return;
+                
+                this.mode = newMode;
+                
+                // Update button styles
+                if (newMode === 'chat') {
+                    this.chatModeBtn.classList.add('active');
+                    this.streamModeBtn.classList.remove('active');
+                } else {
+                    this.chatModeBtn.classList.remove('active');
+                    this.streamModeBtn.classList.add('active');
+                }
+                
+                // Update placeholder text
+                if (newMode === 'stream') {
+                    this.chatInput.placeholder = 'Ask me anything (streaming mode)...';
+                    this.addSystemMessage('🌊 Switched to streaming mode. Responses will be streamed in real-time.');
+                } else {
+                    this.chatInput.placeholder = 'Ask me anything or request to fetch website data...';
+                    this.addSystemMessage('💬 Switched to chat mode. Standard request/response.');
+                }
+            }
+
+            handleKeydown(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    this.handleSubmit(e);
+                }
+            }
+
+            autoResizeTextarea() {
+                const textarea = this.chatInput;
+                textarea.style.height = 'auto';
+                textarea.style.height = Math.min(textarea.scrollHeight, 100) + 'px';
+            }
+
+            async checkConnection() {
+                try {
+                    const response = await fetch(`${this.apiUrl}/health`);
+                    if (response.ok) {
+                        this.isConnected = true;
+                        this.addSystemMessage('✅ Connected to AI Agent. Ready to chat!');
+                    }
+                } catch (error) {
+                    this.isConnected = false;
+                    this.addSystemMessage('⚠️ Failed to connect to AI Agent server on localhost:3000');
+                }
+            }
+
+            async handleSubmit(e) {
+                e.preventDefault();
+
+                const message = this.chatInput.value.trim();
+                if (!message || !this.isConnected) return;
+
+                this.addUserMessage(message);
+                this.chatInput.value = '';
+                this.autoResizeTextarea();
+                this.setLoading(true);
+
+                try {
+                    if (this.mode === 'stream') {
+                        await this.sendAgentMessageStream(message);
+                    } else {
+                        await this.sendAgentMessage(message);
+                    }
+                } catch (error) {
+                    this.addAIMessage(`Error: ${error.message}`);
+                } finally {
+                    this.setLoading(false);
+                }
+            }
+
+            async sendAgentMessage(question) {
+                try {
+                    const response = await fetch(`${this.apiUrl}/agent/chat`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            question,
+                            sessionId: this.sessionId,
+                        }),
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        this.addAIMessage(data.answer);
+                        this.messageCount = data.historySize;
+                        this.updateMessageCount();
+
+                        // Show if website data was fetched
+                        if (data.websiteDataFetched) {
+                            this.addSystemMessage('📚 Website data was retrieved and used for this response.');
+                        }
+                    } else {
+                        throw new Error(data.error || 'Failed to get response');
+                    }
+                } catch (error) {
+                    throw error;
+                }
+            }
+
+            async sendAgentMessageStream(question) {
+                try {
+                    const messageDiv = document.createElement('div');
+                    messageDiv.className = 'message ai';
+
+                    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    const contentDiv = document.createElement('div');
+                    contentDiv.className = 'message-content';
+
+                    messageDiv.innerHTML = `
+                        <div class="message-avatar">🤖</div>
+                    `;
+                    messageDiv.appendChild(contentDiv);
+
+                    this.chatMessages.appendChild(messageDiv);
+
+                    // Use GET request with EventSource for proper SSE streaming (like qa-stream)
+                    return new Promise((resolve, reject) => {
+                        let currentText = '';
+                        let eventSource = null;
+
+                        const queryString = `question=${encodeURIComponent(question)}&sessionId=${encodeURIComponent(this.sessionId)}`;
+                        const eventSourceUrl = `${this.apiUrl}/agent/stream?${queryString}`;
+
+                        console.log('Opening EventSource:', eventSourceUrl);
+
+                        try {
+                            eventSource = new EventSource(eventSourceUrl);
+
+                            eventSource.addEventListener('message', (event) => {
+                                try {
+                                    const data = JSON.parse(event.data);
+                                    console.log('SSE event received:', data.type);
+
+                                    switch (data.type) {
+                                        case 'start':
+                                            contentDiv.innerHTML = `
+                                                <div style="font-size: 0.85rem; color: #999;">🔄 Streaming response...</div>
+                                            `;
+                                            this.scrollToBottom();
+                                            break;
+
+                                        case 'chunk':
+                                            currentText += data.chunk;
+                                            const progress = data.progress || 0;
+                                            contentDiv.innerHTML = `
+                                                ${this.formatMessage(currentText)}<span class="cursor"></span>
+                                                <div class="message-meta">${time} ${progress}%</div>
+                                            `;
+                                            this.scrollToBottom();
+                                            break;
+
+                                        case 'complete':
+                                            currentText = data.answer || currentText;
+                                            
+                                            // Final render without cursor
+                                            contentDiv.innerHTML = `
+                                                ${this.formatMessage(currentText)}
+                                                <div class="message-meta">${time}</div>
+                                            `;
+                                            this.scrollToBottom();
+
+                                            this.messageCount = data.historySize;
+                                            this.updateMessageCount();
+
+                                            if (data.websiteDataFetched) {
+                                                this.addSystemMessage('📚 Website data was retrieved and used for this response.');
+                                            }
+
+                                            console.log('SSE streaming completed', {
+                                                totalChunks: data.totalChunks,
+                                                totalLength: data.totalLength,
+                                            });
+
+                                            eventSource.close();
+                                            resolve();
+                                            break;
+                                    }
+                                } catch (parseError) {
+                                    console.error('Error parsing SSE event:', parseError, event.data);
+                                }
+                            });
+
+                            eventSource.addEventListener('error', (error) => {
+                                console.error('EventSource error:', error);
+                                eventSource.close();
+                                
+                                if (currentText) {
+                                    // Show partial response if we got some data
+                                    contentDiv.innerHTML = `
+                                        ${this.formatMessage(currentText)}
+                                        <div class="message-meta" style="color: #999;">${time} (stream ended)</div>
+                                    `;
+                                    resolve();
+                                } else {
+                                    contentDiv.innerHTML = `
+                                        <div style="color: #d32f2f;">❌ Connection error</div>
+                                        <div class="message-meta">${time}</div>
+                                    `;
+                                    reject(error);
+                                }
+                            });
+
+                            // Add timeout
+                            const timeoutHandle = setTimeout(() => {
+                                eventSource.close();
+                                if (!currentText) {
+                                    contentDiv.innerHTML = `
+                                        <div style="color: #d32f2f;">⏱️ Request timeout</div>
+                                        <div class="message-meta">${time}</div>
+                                    `;
+                                    reject(new Error('Stream timeout'));
+                                }
+                            }, 120000);
+
+                            // Clean up timeout on resolution
+                            resolve = ((originalResolve) => {
+                                return () => {
+                                    clearTimeout(timeoutHandle);
+                                    originalResolve();
+                                };
+                            })(resolve);
+
+                        } catch (error) {
+                            console.error('EventSource creation error:', error);
+                            contentDiv.innerHTML = `
+                                <div style="color: #d32f2f;">❌ ${error.message}</div>
+                                <div class="message-meta">${time}</div>
+                            `;
+                            reject(error);
+                        }
+                    });
+                } catch (error) {
+                    throw error;
+                }
+            }
+
+            addUserMessage(message) {
+                this.renderMessage('user', message, 'You');
+            }
+
+            addAIMessage(message) {
+                this.renderMessage('ai', message, '🤖');
+            }
+
+            addSystemMessage(message) {
+                this.renderMessage('system', message, 'ℹ️');
+            }
+
+            renderMessage(type, content, avatar) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${type}`;
+
+                const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+                messageDiv.innerHTML = `
+                    <div class="message-avatar">${avatar}</div>
+                    <div class="message-content">
+                        ${this.formatMessage(content)}
+                        <div class="message-meta">${time}</div>
+                    </div>
+                `;
+
+                this.chatMessages.appendChild(messageDiv);
+                this.scrollToBottom();
+            }
+
+            formatMessage(content) {
+                return content
+                    .replace(/\n/g, '<br>')
+                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                    .replace(/`(.*?)`/g, '<code style="background: #f0f0f0; padding: 2px 4px; border-radius: 3px;">$1</code>');
+            }
+
+            setLoading(loading) {
+                this.sendButton.disabled = loading;
+                this.chatInput.disabled = loading;
+                this.typingIndicator.style.display = loading ? 'flex' : 'none';
+                if (loading) this.scrollToBottom();
+            }
+
+            updateMessageCount() {
+                this.messageCountDisplay.textContent = this.messageCount;
+            }
+
+            scrollToBottom() {
+                setTimeout(() => {
+                    this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
+                }, 100);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            new LangGraphAgentInterface();
+        });
+    </script>
+</body>
+</html>
