@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI QA Agent - Test Interface</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .chat-container {
+            width: 90%;
+            max-width: 800px;
+            height: 90vh;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .chat-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            position: relative;
+        }
+
+        .chat-header h1 {
+            font-size: 1.8rem;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .chat-header p {
+            opacity: 0.9;
+            font-size: 0.9rem;
+        }
+
+        .status-indicator {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.8rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ff4444;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.connected {
+            background: #44ff44;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #f8f9fa;
+        }
+
+        .message {
+            margin-bottom: 20px;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.user {
+            flex-direction: row-reverse;
+        }
+
+        .message-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: white;
+            font-size: 0.9rem;
+            flex-shrink: 0;
+        }
+
+        .message.user .message-avatar {
+            background: #667eea;
+        }
+
+        .message.ai .message-avatar {
+            background: #764ba2;
+        }
+
+        .message-content {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 18px;
+            line-height: 1.5;
+            word-wrap: break-word;
+        }
+
+        .message.user .message-content {
+            background: #667eea;
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        .message.ai .message-content {
+            background: white;
+            color: #333;
+            border: 1px solid #e1e5e9;
+            border-bottom-left-radius: 4px;
+        }
+
+        .message-time {
+            font-size: 0.75rem;
+            color: #888;
+            margin-top: 4px;
+        }
+
+        .chat-input-container {
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #e1e5e9;
+        }
+
+        .chat-input-form {
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+        }
+
+        .input-wrapper {
+            flex: 1;
+            position: relative;
+        }
+
+        .chat-input {
+            width: 100%;
+            min-height: 44px;
+            max-height: 120px;
+            padding: 12px 50px 12px 16px;
+            border: 2px solid #e1e5e9;
+            border-radius: 22px;
+            font-size: 1rem;
+            font-family: inherit;
+            resize: none;
+            outline: none;
+            transition: border-color 0.2s ease;
+        }
+
+        .chat-input:focus {
+            border-color: #667eea;
+        }
+
+        .chat-input:disabled {
+            background: #f5f5f5;
+            cursor: not-allowed;
+        }
+
+        .send-button {
+            width: 44px;
+            height: 44px;
+            border: none;
+            border-radius: 50%;
+            background: #667eea;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+        }
+
+        .send-button:hover:not(:disabled) {
+            background: #5a67d8;
+            transform: scale(1.05);
+        }
+
+        .send-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .typing-indicator {
+            display: none;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .typing-indicator.show {
+            display: flex;
+        }
+
+        .typing-dots {
+            display: flex;
+            gap: 4px;
+        }
+
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ccc;
+            animation: typing 1.4s infinite;
+        }
+
+        .typing-dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .typing-dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes typing {
+            0%, 60%, 100% {
+                transform: translateY(0);
+            }
+            30% {
+                transform: translateY(-10px);
+            }
+        }
+
+        .error-message {
+            background: #fee;
+            color: #c53030;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            border-left: 4px solid #c53030;
+        }
+
+        .welcome-message {
+            text-align: center;
+            color: #666;
+            padding: 40px 20px;
+            border-radius: 12px;
+            background: white;
+            margin-bottom: 20px;
+        }
+
+        .welcome-message h3 {
+            margin-bottom: 8px;
+            color: #333;
+        }
+
+        .welcome-message p {
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        .cursor {
+            animation: blink 1s infinite;
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+
+        .streaming-content {
+            min-height: 1.2em;
+        }
+
+        @media (max-width: 768px) {
+            .chat-container {
+                width: 95%;
+                height: 95vh;
+                border-radius: 12px;
+            }
+
+            .message-content {
+                max-width: 85%;
+            }
+
+            .chat-header h1 {
+                font-size: 1.5rem;
+            }
+
+            .status-indicator {
+                position: relative;
+                top: auto;
+                right: auto;
+                margin-top: 10px;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <h1>🤖 AI QA Agent</h1>
+            <p>Test your AI integration locally</p>
+            <div class="status-indicator">
+                <div class="status-dot" id="statusDot"></div>
+                <span id="statusText">Connecting...</span>
+            </div>
+        </div>
+
+        <div class="chat-messages" id="chatMessages">
+            <div class="welcome-message">
+                <h3>👋 Welcome to AI QA Agent Test Interface</h3>
+                <p>Ask me anything! I'm powered by OpenAI and ready to help you test the integration.</p>
+            </div>
+        </div>
+
+        <div class="typing-indicator" id="typingIndicator">
+            <div class="message-avatar">🤖</div>
+            <div class="message-content">
+                <div class="typing-dots">
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="chat-input-container">
+            <form class="chat-input-form" id="chatForm">
+                <div class="input-wrapper">
+                    <textarea 
+                        id="chatInput" 
+                        class="chat-input" 
+                        placeholder="Ask me anything..." 
+                        rows="1"
+                        maxlength="500"
+                    ></textarea>
+                </div>
+                <button type="submit" class="send-button" id="sendButton">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                        <polygon points="22,2 15,22 11,13 2,9"></polygon>
+                    </svg>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        class AIQAChatInterface {
+            constructor() {
+                this.apiUrl = 'http://localhost:3000';
+                this.chatMessages = document.getElementById('chatMessages');
+                this.chatForm = document.getElementById('chatForm');
+                this.chatInput = document.getElementById('chatInput');
+                this.sendButton = document.getElementById('sendButton');
+                this.typingIndicator = document.getElementById('typingIndicator');
+                this.statusDot = document.getElementById('statusDot');
+                this.statusText = document.getElementById('statusText');
+                
+                this.messageHistory = [];
+                this.isConnected = false;
+                
+                this.init();
+            }
+
+            init() {
+                this.setupEventListeners();
+                this.checkConnection();
+                this.autoResizeTextarea();
+            }
+
+            setupEventListeners() {
+                this.chatForm.addEventListener('submit', (e) => this.handleSubmit(e));
+                this.chatInput.addEventListener('keydown', (e) => this.handleKeydown(e));
+                this.chatInput.addEventListener('input', () => this.autoResizeTextarea());
+            }
+
+            handleKeydown(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    this.handleSubmit(e);
+                }
+            }
+
+            autoResizeTextarea() {
+                const textarea = this.chatInput;
+                textarea.style.height = 'auto';
+                textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+            }
+
+            async checkConnection() {
+                try {
+                    const response = await fetch(`${this.apiUrl}/health`);
+                    const data = await response.json();
+                    
+                    if (response.ok && data.status === 'healthy') {
+                        this.setConnectionStatus(true, 'Connected');
+                        this.isConnected = true;
+                        
+                        // Show AI configuration status
+                        const aiConfigured = data.ai && data.ai.configured;
+                        if (aiConfigured) {
+                            this.addSystemMessage('✅ AI integration is ready! OpenAI is configured and working.');
+                        } else {
+                            this.addSystemMessage('⚠️ AI integration detected but OpenAI might not be configured. You may receive placeholder responses.');
+                        }
+                    } else {
+                        throw new Error('Service not healthy');
+                    }
+                } catch (error) {
+                    this.setConnectionStatus(false, 'Disconnected');
+                    this.isConnected = false;
+                    this.addErrorMessage('Failed to connect to AI QA Agent. Make sure the server is running on localhost:3000');
+                }
+            }
+
+            setConnectionStatus(connected, text) {
+                this.statusDot.className = `status-dot ${connected ? 'connected' : ''}`;
+                this.statusText.textContent = text;
+            }
+
+            async handleSubmit(e) {
+                e.preventDefault();
+                
+                const message = this.chatInput.value.trim();
+                if (!message || !this.isConnected) return;
+
+                this.addUserMessage(message);
+                this.chatInput.value = '';
+                this.autoResizeTextarea();
+                this.setLoading(true);
+
+                // Try streaming first, fallback to regular if streaming is not supported
+                let streamingSucceeded = false;
+                try {
+                    await this.handleStreamingRequest(message);
+                    streamingSucceeded = true;
+                } catch (error) {
+                    console.warn('Streaming failed, falling back to regular request:', error);
+                    if (!streamingSucceeded) {
+                        await this.handleRegularRequest(message);
+                    }
+                } finally {
+                    this.setLoading(false);
+                }
+            }
+
+            async handleStreamingRequest(message) {
+                console.log('🚀 Starting SSE streaming request...');
+                
+                // Encode the request as URL parameters for GET request to SSE
+                const params = new URLSearchParams({
+                    question: message,
+                    context: this.getRecentContext() || ''
+                });
+                
+                const sseUrl = `${this.apiUrl}/qa/stream?${params}`;
+                console.log('📡 SSE URL:', sseUrl);
+                
+                const eventSource = new EventSource(sseUrl);
+                let currentMessageDiv = null;
+                let accumulatedResponse = '';
+                
+                // Log EventSource state changes
+                eventSource.onopen = () => {
+                    console.log('🔗 SSE connection opened');
+                };
+
+                return new Promise((resolve, reject) => {
+                    let streamingCompleted = false;
+                    let streamingStarted = false;
+                    
+                    const cleanup = () => {
+                        if (eventSource.readyState !== EventSource.CLOSED) {
+                            eventSource.close();
+                        }
+                    };
+
+                    eventSource.onmessage = (event) => {
+                        try {
+                            const data = JSON.parse(event.data);
+                            
+                            switch (data.type) {
+                                case 'start':
+                                    streamingStarted = true;
+                                    currentMessageDiv = this.createStreamingMessage();
+                                    console.log('✅ SSE streaming started');
+                                    break;
+                                    
+                                case 'chunk':
+                                    accumulatedResponse += data.content;
+                                    this.updateStreamingMessage(currentMessageDiv, accumulatedResponse);
+                                    break;
+                                    
+                                case 'complete':
+                                    streamingCompleted = true;
+                                    this.finalizeStreamingMessage(currentMessageDiv, data.fullResponse);
+                                    this.messageHistory.push({ 
+                                        type: 'ai', 
+                                        content: data.fullResponse, 
+                                        timestamp: new Date() 
+                                    });
+                                    cleanup();
+                                    console.log('✅ SSE streaming completed successfully');
+                                    resolve();
+                                    break;
+                                    
+                                case 'error':
+                                    streamingCompleted = true;
+                                    this.addErrorMessage(`Streaming error: ${data.error}`);
+                                    cleanup();
+                                    reject(new Error(data.error));
+                                    break;
+                            }
+                        } catch (parseError) {
+                            console.error('Failed to parse SSE data:', parseError);
+                        }
+                    };
+
+                    eventSource.onerror = (error) => {
+                        console.error('SSE connection error:', error);
+                        cleanup();
+                        
+                        // Only reject if streaming hasn't completed successfully
+                        if (!streamingCompleted) {
+                            reject(new Error('Streaming connection failed'));
+                        }
+                    };
+
+                    // Extended timeout for longer responses (60 seconds)
+                    const timeoutId = setTimeout(() => {
+                        if (!streamingCompleted) {
+                            console.warn('SSE streaming timeout - no activity for 60 seconds');
+                            cleanup();
+                            reject(new Error('Streaming timeout - response took too long'));
+                        }
+                    }, 60000);
+
+                    // Clear timeout when streaming completes
+                    const originalResolve = resolve;
+                    resolve = () => {
+                        clearTimeout(timeoutId);
+                        originalResolve();
+                    };
+                });
+            }
+
+            async handleRegularRequest(message) {
+                try {
+                    const response = await fetch(`${this.apiUrl}/qa`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            question: message,
+                            context: this.getRecentContext()
+                        })
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        this.addAIMessage(data.answer);
+                    } else {
+                        throw new Error(data.error || 'Failed to get response');
+                    }
+                } catch (error) {
+                    this.addErrorMessage(`Error: ${error.message}`);
+                }
+            }
+
+            createStreamingMessage() {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'message ai';
+                
+                const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                
+                messageDiv.innerHTML = `
+                    <div class="message-avatar">🤖</div>
+                    <div class="message-content">
+                        <div class="streaming-content"></div>
+                        <div class="message-time">${time}</div>
+                    </div>
+                `;
+                
+                this.chatMessages.appendChild(messageDiv);
+                this.scrollToBottom();
+                
+                return messageDiv;
+            }
+
+            updateStreamingMessage(messageDiv, content) {
+                const contentDiv = messageDiv.querySelector('.streaming-content');
+                if (contentDiv) {
+                    contentDiv.innerHTML = this.formatMessage(content) + '<span class="cursor">▋</span>';
+                    this.scrollToBottom();
+                }
+            }
+
+            finalizeStreamingMessage(messageDiv, finalContent) {
+                const contentDiv = messageDiv.querySelector('.streaming-content');
+                if (contentDiv) {
+                    contentDiv.innerHTML = this.formatMessage(finalContent);
+                }
+            }
+
+            getRecentContext() {
+                // Get last 3 messages for context
+                const recentMessages = this.messageHistory.slice(-6); // 3 pairs of Q&A
+                return recentMessages
+                    .map(msg => `${msg.type === 'user' ? 'User' : 'AI'}: ${msg.content}`)
+                    .join('\n');
+            }
+
+            addUserMessage(message) {
+                this.messageHistory.push({ type: 'user', content: message, timestamp: new Date() });
+                this.renderMessage('user', message, 'You');
+            }
+
+            addAIMessage(message) {
+                this.messageHistory.push({ type: 'ai', content: message, timestamp: new Date() });
+                this.renderMessage('ai', message, '🤖');
+            }
+
+            addSystemMessage(message) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'error-message';
+                messageDiv.style.background = '#e6f3ff';
+                messageDiv.style.color = '#0066cc';
+                messageDiv.style.borderLeftColor = '#0066cc';
+                messageDiv.textContent = message;
+                
+                // Insert after welcome message
+                const welcomeMessage = this.chatMessages.querySelector('.welcome-message');
+                if (welcomeMessage) {
+                    welcomeMessage.insertAdjacentElement('afterend', messageDiv);
+                } else {
+                    this.chatMessages.appendChild(messageDiv);
+                }
+            }
+
+            addErrorMessage(message) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'error-message';
+                messageDiv.textContent = message;
+                this.chatMessages.appendChild(messageDiv);
+                this.scrollToBottom();
+            }
+
+            renderMessage(type, content, avatar) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${type}`;
+                
+                const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                
+                messageDiv.innerHTML = `
+                    <div class="message-avatar">${avatar}</div>
+                    <div class="message-content">
+                        ${this.formatMessage(content)}
+                        <div class="message-time">${time}</div>
+                    </div>
+                `;
+                
+                this.chatMessages.appendChild(messageDiv);
+                this.scrollToBottom();
+            }
+
+            formatMessage(content) {
+                // Basic formatting for better readability
+                return content
+                    .replace(/\n/g, '<br>')
+                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                    .replace(/`(.*?)`/g, '<code style="background: #f0f0f0; padding: 2px 4px; border-radius: 3px;">$1</code>');
+            }
+
+            setLoading(loading) {
+                this.sendButton.disabled = loading;
+                this.chatInput.disabled = loading;
+                
+                if (loading) {
+                    this.typingIndicator.classList.add('show');
+                    this.scrollToBottom();
+                } else {
+                    this.typingIndicator.classList.remove('show');
+                }
+            }
+
+            scrollToBottom() {
+                setTimeout(() => {
+                    this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
+                }, 100);
+            }
+        }
+
+        // Initialize the chat interface when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new AIQAChatInterface();
+        });
+    </script>
+</body>
+</html>

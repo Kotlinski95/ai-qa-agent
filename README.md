@@ -1,13 +1,37 @@
-# AI QA Agent Lambda Function
+# AI QA Agent Lambda Fun```
+├── src/
+│   ├── index.ts          # Main Lambda handler
+│   ├── config/           # Configuration and environment variables
+│   ├── handlers/         # Route handlers (health, qa)
+│   ├── services/         # LangChain service integration
+│   ├── router/           # Request routing
+│   ├── utils/            # Utilities (validation, response, logging)
+│   └── types/            # TypeScript interfaces
+├── dist/                 # Compiled JavaScript output (generated)
+├── .env.template         # Environment variables template
+├── AWS_ENVIRONMENT_SETUP.md # AWS Lambda setup guide
+├── package.json          # Dependencies including LangChain
+├── tsconfig.json         # TypeScript configuration
+└── postman-collection.json # Postman testing collection
+``` TypeScript-based AWS Lambda function for AI-powered question answering using **LangChain.js** and **OpenAI**.
 
-A TypeScript-based AWS Lambda function for AI-powered question answering.
+## 🤖 AI Integration
+
+- **LangChain.js**: Modern LLM integration framework
+- **OpenAI GPT**: Powered by OpenAI's ChatGPT models (gpt-4o-mini by default)
+- **Intelligent Fallbacks**: Graceful degradation to placeholder responses
+- **Configurable Models**: Support for different OpenAI models via environment variables
 
 ## 🚀 Features
 
 - **TypeScript Support**: Full type safety with AWS Lambda types
-- **Error Handling**: Comprehensive error handling and logging
+- **LangChain Integration**: Professional LLM integration with structured prompts
+- **OpenAI ChatGPT**: Real AI responses powered by OpenAI API
+- **Error Handling**: Comprehensive error handling and logging with fallbacks
 - **CORS Enabled**: Pre-configured for API Gateway integration
-- **Development Tools**: Build scripts and watch mode for development
+- **Environment Variables**: Secure configuration via AWS Lambda environment variables
+- **Health Checks**: AI service status monitoring
+- **Development Tools**: Build scripts and local testing server
 
 ## 📁 Project Structure
 
@@ -20,12 +44,37 @@ A TypeScript-based AWS Lambda function for AI-powered question answering.
 └── .gitignore           # Git ignore rules
 ```
 
+## ⚙️ Configuration
+
+### Required Environment Variables
+
+To use OpenAI integration, you need to set these environment variables:
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `OPENAI_API_KEY` | ✅ | - | Your OpenAI API key (starts with `sk-`) |
+| `OPENAI_MODEL` | ❌ | `gpt-4o-mini` | OpenAI model to use |
+| `OPENAI_TEMPERATURE` | ❌ | `0.7` | Response creativity (0-2) |
+| `OPENAI_MAX_TOKENS` | ❌ | `1500` | Maximum response length |
+
+### Setting Environment Variables
+
+**For Local Development:**
+```bash
+cp .env.template .env
+# Edit .env with your OpenAI API key
+```
+
+**For AWS Lambda:**
+See [AWS_ENVIRONMENT_SETUP.md](./AWS_ENVIRONMENT_SETUP.md) for detailed instructions.
+
 ## 🛠️ Setup
 
 ### Prerequisites
 - Node.js (v18+ recommended)
 - npm or yarn
 - AWS CLI (for deployment)
+- OpenAI API key (for AI features)
 
 ### Installation
 

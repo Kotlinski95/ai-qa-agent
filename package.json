@@ -3,15 +3,26 @@
   "version": "1.0.0",
   "description": "AI QA Agent Lambda Function",
   "main": "dist/index.js",
+  "type": "module",
   "scripts": {
     "build": "tsc",
     "watch": "tsc --watch",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "start:local": "npm run build && node dev-server.js",
+    "start:sam": "npm run build && sam local start-api --port 3000",
+    "test:local": "npm run build && node test-local.js",
+    "test:health": "npm run build && node test-health.js"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.143",
     "@types/node": "^20.0.0",
     "typescript": "^5.0.0"
   },
-  "dependencies": {}
+  "dependencies": {
+    "@langchain/core": "^0.3.29",
+    "@langchain/langgraph": "^0.2.24",
+    "@langchain/openai": "^0.3.17",
+    "dotenv": "^17.2.3",
+    "langchain": "^0.3.9"
+  }
 }

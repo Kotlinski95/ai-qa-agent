@@ -1,0 +1,21 @@
+{
+  "httpMethod": "POST",
+  "path": "/qa",
+  "headers": {
+    "Content-Type": "application/json",
+    "Accept": "application/json"
+  },
+  "queryStringParameters": null,
+  "pathParameters": null,
+  "body": "{\"question\": \"What is AWS Lambda?\", \"context\": \"AWS Lambda is a serverless computing service\"}",
+  "isBase64Encoded": false,
+  "requestContext": {
+    "requestId": "test-request-id",
+    "stage": "test",
+    "httpMethod": "POST",
+    "path": "/qa",
+    "accountId": "123456789012",
+    "resourceId": "test-resource",
+    "resourcePath": "/qa"
+  }
+}

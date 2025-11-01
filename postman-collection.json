@@ -1,0 +1,118 @@
+{
+  "info": {
+    "name": "AI QA Agent Lambda - OpenAI Tests",
+    "description": "Collection for testing the AI QA Agent Lambda function with OpenAI integration",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "description": "Base URL for local development server"
+    },
+    {
+      "key": "apiUrl",
+      "value": "https://your-api-gateway-url.execute-api.region.amazonaws.com/Prod",
+      "description": "API Gateway URL for deployed Lambda"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/health",
+          "host": ["{{baseUrl}}"],
+          "path": ["health"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Ask Question (POST /qa)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"question\": \"What is AWS Lambda?\",\n  \"context\": \"AWS Lambda is a serverless computing service provided by Amazon Web Services\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/qa",
+          "host": ["{{baseUrl}}"],
+          "path": ["qa"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Ask Question (POST root)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"question\": \"How does serverless computing work?\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/",
+          "host": ["{{baseUrl}}"],
+          "path": [""]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Invalid Request (Missing Question)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"context\": \"Some context without a question\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/qa",
+          "host": ["{{baseUrl}}"],
+          "path": ["qa"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "404 - Unsupported Route",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/unsupported",
+          "host": ["{{baseUrl}}"],
+          "path": ["unsupported"]
+        }
+      },
+      "response": []
+    }
+  ]
+}

@@ -1,42 +1,48 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
+// Load environment variables first
+import './env.js';
 
-export const handler = async (
+import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
+import { routeRequest, initializeRouter } from './router/index.js';
+import { createErrorResponse } from './utils/response.js';
+import { HttpStatusCode, LambdaHandler } from './types/index.js';
+import { logRequest, logResponse, logError } from './utils/logger.js';
+import { config } from './config/index.js';
+
+// Initialize router
+initializeRouter();
+
+/**
+ * Main Lambda handler - Clean, focused, and maintainable
+ */
+export const handler: LambdaHandler = async (
   event: APIGatewayProxyEvent,
   context: Context
 ): Promise<APIGatewayProxyResult> => {
-  console.log('Event:', JSON.stringify(event, null, 2));
-  console.log('Context:', JSON.stringify(context, null, 2));
-
+  const startTime = Date.now();
+  
   try {
-    // TODO: Implement your AI QA agent logic here
+    // Log incoming request
+    logRequest(event, context);
     
-    const response: APIGatewayProxyResult = {
-      statusCode: 200,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*', // Configure CORS as needed
-      },
-      body: JSON.stringify({
-        message: 'Hello from TypeScript Lambda!',
-        timestamp: new Date().toISOString(),
-        requestId: context.awsRequestId,
-      }),
-    };
-
+    // Route the request
+    const response = await routeRequest(event, context);
+    
+    // Log response
+    const duration = Date.now() - startTime;
+    logResponse(response.statusCode, context, duration);
+    
     return response;
+
   } catch (error) {
-    console.error('Error:', error);
+    // Log critical error
+    logError('Unhandled error in main handler', error);
     
-    return {
-      statusCode: 500,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-      },
-      body: JSON.stringify({
-        error: 'Internal server error',
-        message: error instanceof Error ? error.message : 'Unknown error',
-      }),
-    };
+    // Return generic error response
+    return createErrorResponse(
+      'Internal Server Error',
+      'An unexpected error occurred. Please try again later.',
+      HttpStatusCode.INTERNAL_SERVER_ERROR,
+      context
+    );
   }
 };
