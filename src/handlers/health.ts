@@ -62,21 +62,31 @@ async function performHealthChecks(): Promise<boolean> {
     // - Check memory usage
     // - Check disk space
     
-    // Basic Node.js runtime check
+    // Memory check - Use RSS (Resident Set Size) vs Lambda limit, not heap pressure
+    // Note: heapUsed/heapTotal measures V8 internal heap pressure (often 90-97% before heap expansion)
+    //       RSS/Lambda limit measures actual process memory vs available Lambda memory
+    const lambdaMemoryLimitMB = parseInt(process.env.AWS_LAMBDA_FUNCTION_MEMORY_SIZE || '512');
     const memoryUsage = process.memoryUsage();
-    const maxHeapSize = memoryUsage.heapTotal;
-    const usedHeap = memoryUsage.heapUsed;
-    const memoryUtilization = (usedHeap / maxHeapSize) * 100;
+    const rssMB = memoryUsage.rss / 1024 / 1024;
+    const heapUsedMB = memoryUsage.heapUsed / 1024 / 1024;
+    const heapTotalMB = memoryUsage.heapTotal / 1024 / 1024;
+    const memoryUtilization = (rssMB / lambdaMemoryLimitMB) * 100;
     
     logger.debug('Memory usage check', {
-      heapUsed: `${Math.round(usedHeap / 1024 / 1024)}MB`,
-      heapTotal: `${Math.round(maxHeapSize / 1024 / 1024)}MB`,
+      rss: `${rssMB.toFixed(1)}MB`,
+      heapUsed: `${heapUsedMB.toFixed(1)}MB`,
+      heapTotal: `${heapTotalMB.toFixed(1)}MB`,
+      lambdaLimit: `${lambdaMemoryLimitMB}MB`,
       utilization: `${memoryUtilization.toFixed(1)}%`,
     });
     
-    // Consider unhealthy if memory usage is above 90%
+    // Consider unhealthy if using > 90% of Lambda memory (not heap pressure)
     if (memoryUtilization > 90) {
-      logger.warn('High memory usage detected', { utilization: memoryUtilization });
+      logger.warn('High memory usage detected', { 
+        utilization: memoryUtilization,
+        usedMB: rssMB.toFixed(2),
+        limitMB: lambdaMemoryLimitMB,
+      });
       return false;
     }
     
@@ -93,59 +103,40 @@ async function performHealthChecks(): Promise<boolean> {
   }
 }
 
-/**
- * Get AI service status
- */
-async function getAIServiceStatus(): Promise<{
-  configured: boolean;
-  provider: string;
-  model?: string;
-  connected?: boolean;
-}> {
-  try {
-    const hasApiKey = !!config.ai.openai.apiKey;
-    
-    if (!hasApiKey) {
+  /**
+   * Checks AI service status (lightweight - no API calls)
+   */
+  async function getAIServiceStatus() {
+    try {
+      logger.debug('Checking AI service status');
+
+      // Check if API key is configured (no imports, no API calls)
+      const hasApiKey = !!config.ai.openai.apiKey;
+      const hasPineconeKey = !!config.ai.pinecone.apiKey;
+
+      logger.info('AI service check completed', { 
+        hasApiKey, 
+        hasPineconeKey,
+        model: config.ai.openai.model 
+      });
+
+      return {
+        configured: hasApiKey,
+        provider: 'OpenAI (LangChain)',
+        model: config.ai.openai.model,
+        pinecone: {
+          configured: hasPineconeKey,
+          index: config.ai.pinecone.indexName,
+          namespace: config.ai.pinecone.namespace,
+        },
+      };
+    } catch (error) {
+      logger.error('Error checking AI service status', error);
       return {
         configured: false,
         provider: 'OpenAI (LangChain)',
-        connected: false,
+        model: config.ai.openai.model,
+        error: error instanceof Error ? error.message : 'Unknown error',
       };
     }
-
-    // Try to test connection if configured
-    try {
-      const { testConnection } = await import('../services/langchain.js');
-      
-      // Quick connection test (with timeout)
-      const connectionPromise = testConnection();
-      const timeoutPromise = new Promise<boolean>((_, reject) => {
-        setTimeout(() => reject(new Error('Connection test timeout')), 5000);
-      });
-      
-      const connected = await Promise.race([connectionPromise, timeoutPromise]);
-      
-      return {
-        configured: true,
-        provider: 'OpenAI (LangChain)',
-        model: config.ai.openai.model,
-        connected,
-      };
-    } catch (connectionError) {
-      logger.debug('AI connection test failed', connectionError);
-      return {
-        configured: true,
-        provider: 'OpenAI (LangChain)',
-        model: config.ai.openai.model,
-        connected: false,
-      };
-    }
-  } catch (error) {
-    logger.error('Failed to get AI service status', error);
-    return {
-      configured: false,
-      provider: 'Unknown',
-      connected: false,
-    };
   }
-}

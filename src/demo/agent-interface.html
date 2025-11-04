@@ -71,6 +71,55 @@
             word-break: break-all;
         }
 
+        .env-switcher {
+            background: white;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+        }
+
+        .env-switcher h3 {
+            font-size: 0.8rem;
+            margin-bottom: 8px;
+        }
+
+        .env-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .env-button {
+            flex: 1;
+            padding: 8px 12px;
+            border: 2px solid #e1e5e9;
+            background: white;
+            color: #666;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            text-align: center;
+        }
+
+        .env-button:hover {
+            border-color: #667eea;
+            color: #667eea;
+        }
+
+        .env-button.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .env-status {
+            margin-top: 8px;
+            font-size: 0.75rem;
+            color: #666;
+            text-align: center;
+        }
+
         .chat-main {
             flex: 1;
             display: flex;
@@ -373,6 +422,15 @@
     <div class="container">
         <div class="sidebar">
             <div>
+                <h3>Environment</h3>
+                <div class="env-switcher">
+                    <div class="env-buttons">
+                        <button class="env-button" id="devEnvBtn">🔧 Local</button>
+                        <button class="env-button" id="prodEnvBtn">☁️ AWS</button>
+                    </div>
+                    <div class="env-status" id="envStatus">Auto-detected</div>
+                </div>
+
                 <h3>Session</h3>
                 <div class="session-info">
                     <label>Session ID:</label>
@@ -437,9 +495,61 @@
     </div>
 
     <script>
+        // ============================================
+        // CONFIGURATION
+        // ============================================
+        const CONFIG = {
+            // Development: Local dev server
+            dev: {
+                baseUrl: 'http://localhost:3000',
+                streamEndpoint: '/agent/stream',  // Dev server SSE endpoint
+                chatEndpoint: '/agent/chat',
+                historyEndpoint: '/agent/history',
+            },
+            
+            // Production: AWS Lambda Deployment
+            prod: {
+                // HTTP API for non-streaming endpoints
+                baseUrl: 'https://juk6ern7gb.execute-api.us-east-1.amazonaws.com',
+                // Lambda Function URL for streaming (with RESPONSE_STREAM)
+                streamingUrl: 'https://xtudk47fr5x7cof4ihd24fykwe0qboey.lambda-url.us-east-1.on.aws',
+                streamEndpoint: '',  // Lambda Function URL handles streaming at root
+                chatEndpoint: '/agent/chat',
+                historyEndpoint: '/agent/history',
+            },
+            
+            // Auto-detect environment
+            get current() {
+                // Check for manual override in localStorage
+                const manualEnv = localStorage.getItem('ai-agent-env');
+                if (manualEnv === 'dev') return this.dev;
+                if (manualEnv === 'prod') return this.prod;
+                
+                // Check if running on localhost
+                const isLocal = window.location.hostname === 'localhost' || 
+                               window.location.hostname === '127.0.0.1';
+                return isLocal ? this.dev : this.prod;
+            },
+            
+            // Set environment manually
+            setEnvironment(env) {
+                localStorage.setItem('ai-agent-env', env);
+                window.location.reload();
+            },
+            
+            // Get full URL for endpoint
+            getUrl(endpoint) {
+                const config = this.current;
+                return config.baseUrl + endpoint;
+            }
+        };
+
         class LangGraphAgentInterface {
             constructor() {
-                this.apiUrl = 'http://localhost:3000';
+                // Use configuration from CONFIG
+                this.config = CONFIG.current;
+                this.apiUrl = this.config.baseUrl;
+                
                 this.sessionId = this.generateSessionId();
                 this.chatMessages = document.getElementById('chatMessages');
                 this.chatForm = document.getElementById('chatForm');
@@ -450,6 +560,9 @@
                 this.messageCountDisplay = document.getElementById('messageCount');
                 this.chatModeBtn = document.getElementById('chatModeBtn');
                 this.streamModeBtn = document.getElementById('streamModeBtn');
+                this.devEnvBtn = document.getElementById('devEnvBtn');
+                this.prodEnvBtn = document.getElementById('prodEnvBtn');
+                this.envStatus = document.getElementById('envStatus');
 
                 this.messageCount = 0;
                 this.isConnected = false;
@@ -465,8 +578,36 @@
             init() {
                 this.sessionIdDisplay.textContent = this.sessionId;
                 this.setupEventListeners();
+                this.updateEnvironmentUI();
                 this.checkConnection();
                 this.autoResizeTextarea();
+                
+                // Show which environment we're using
+                const envMode = this.config === CONFIG.dev ? '🔧 Development' : '☁️ Production';
+                const envMessage = `${envMode} mode - Connected to: ${this.apiUrl}`;
+                console.log(envMessage);
+                this.addSystemMessage(envMessage);
+            }
+
+            updateEnvironmentUI() {
+                const isDev = this.config === CONFIG.dev;
+                const manualEnv = localStorage.getItem('ai-agent-env');
+                
+                // Update button states
+                if (isDev) {
+                    this.devEnvBtn.classList.add('active');
+                    this.prodEnvBtn.classList.remove('active');
+                } else {
+                    this.devEnvBtn.classList.remove('active');
+                    this.prodEnvBtn.classList.add('active');
+                }
+                
+                // Update status text
+                if (manualEnv) {
+                    this.envStatus.textContent = manualEnv === 'dev' ? 'Local (manual)' : 'AWS (manual)';
+                } else {
+                    this.envStatus.textContent = isDev ? 'Local (auto)' : 'AWS (auto)';
+                }
             }
 
             setupEventListeners() {
@@ -477,6 +618,22 @@
                 // Mode switching
                 this.chatModeBtn.addEventListener('click', () => this.setMode('chat'));
                 this.streamModeBtn.addEventListener('click', () => this.setMode('stream'));
+                
+                // Environment switching
+                this.devEnvBtn.addEventListener('click', () => this.switchEnvironment('dev'));
+                this.prodEnvBtn.addEventListener('click', () => this.switchEnvironment('prod'));
+            }
+
+            switchEnvironment(env) {
+                const currentEnv = this.config === CONFIG.dev ? 'dev' : 'prod';
+                if (currentEnv === env) {
+                    // If clicking the same env, clear manual override (go back to auto-detect)
+                    localStorage.removeItem('ai-agent-env');
+                    this.addSystemMessage(`🔄 Switched to auto-detect mode`);
+                } else {
+                    // Switch to the selected environment
+                    CONFIG.setEnvironment(env);
+                }
             }
 
             setMode(newMode) {
@@ -601,15 +758,22 @@
 
                     this.chatMessages.appendChild(messageDiv);
 
-                    // Use GET request with EventSource for proper SSE streaming (like qa-stream)
+                    // Use GET request with EventSource for proper SSE streaming
                     return new Promise((resolve, reject) => {
                         let currentText = '';
                         let eventSource = null;
 
                         const queryString = `question=${encodeURIComponent(question)}&sessionId=${encodeURIComponent(this.sessionId)}`;
-                        const eventSourceUrl = `${this.apiUrl}/agent/stream?${queryString}`;
+                        
+                        // Use config to determine endpoint
+                        // Dev server uses /agent/stream on baseUrl
+                        // Production uses separate Lambda Function URL for streaming
+                        const streamBaseUrl = this.config.streamingUrl || this.config.baseUrl;
+                        const streamEndpoint = this.config.streamEndpoint || '';
+                        const eventSourceUrl = `${streamBaseUrl}${streamEndpoint}?${queryString}`;
 
-                        console.log('Opening EventSource:', eventSourceUrl);
+                        console.log('🌊 Opening EventSource for streaming:', eventSourceUrl);
+                        console.log('Environment:', this.config === CONFIG.dev ? 'Development (dev-server)' : 'Production (Lambda Function URL)');
 
                         try {
                             eventSource = new EventSource(eventSourceUrl);

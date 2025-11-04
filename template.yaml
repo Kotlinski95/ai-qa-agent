@@ -1,38 +1,167 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: AI QA Agent Lambda Function
+Description: AI QA Agent with LangGraph - Streaming and Non-Streaming APIs
+
+# Parameters for sensitive values (passed during deployment)
+Parameters:
+  OpenAIApiKey:
+    Type: String
+    NoEcho: true
+    Description: OpenAI API Key (stored in Lambda environment variables)
+    Default: 'REPLACE_WITH_YOUR_OPENAI_KEY'
+  
+  PineconeApiKey:
+    Type: String
+    NoEcho: true
+    Description: Pinecone API Key (stored in Lambda environment variables)
+    Default: 'REPLACE_WITH_YOUR_PINECONE_KEY'
 
 Globals:
   Function:
-    Timeout: 30
-    MemorySize: 512
-    Runtime: nodejs18.x
+    Timeout: 300
+    MemorySize: 1024
+    Runtime: nodejs20.x
     Architectures:
-      - x86_64
+      - arm64
+    Environment:
+      Variables:
+        # API Keys - referenced from Parameters (not hardcoded!)
+        OPENAI_API_KEY: !Ref OpenAIApiKey
+        PINECONE_API_KEY: !Ref PineconeApiKey
+        
+        # OpenAI Configuration
+        OPENAI_MODEL: gpt-4o-mini
+        OPENAI_TEMPERATURE: '0.7'
+        OPENAI_MAX_TOKENS: '1500'
+        
+        # Application Configuration
+        LOG_LEVEL: info
+        NODE_ENV: production
+        
+        # Website Search Configuration
+        WEBSITE_SITEMAP_URL: https://kotlinskidev.com/sitemap_index.xml
+        WEBSITE_SEARCH_ENABLED: 'true'
+        WEBSITE_MAX_PAGES_TO_SEARCH: '50'
+        
+        # Pinecone Configuration
+        PINECONE_INDEX_NAME: client-context
+        PINECONE_NAMESPACE: kotlinskidev
+        PINECONE_CACHE_DURATION_HOURS: '24'
 
 Resources:
+  # Main Lambda Function (HTTP API for non-streaming endpoints)
   AIQAAgentFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: dist/
-      Handler: index.handler
-      Runtime: nodejs18.x
+      FunctionName: ai-qa-agent
+      Description: AI QA Agent with LangGraph - Non-streaming endpoints
+      CodeUri: .
+      Handler: dist/index.handler
+      
       Events:
         ApiEvent:
-          Type: Api
+          Type: HttpApi
           Properties:
             Path: /{proxy+}
             Method: ANY
-        RootApiEvent:
-          Type: Api
-          Properties:
-            Path: /
-            Method: ANY
+            ApiId: !Ref HttpApi
+      
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: '*'
+      
+      Tags:
+        Application: ai-qa-agent
+        Component: api
+        Environment: production
+
+  # Streaming Lambda Function (Lambda Function URL for streaming responses)
+  StreamingFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: ai-qa-agent-streaming
+      Description: AI QA Agent with LangGraph - Streaming endpoint for real-time token-by-token responses
+      CodeUri: .
+      Handler: dist/streaming-handler.handler
+      
+      FunctionUrlConfig:
+        AuthType: NONE
+        InvokeMode: RESPONSE_STREAM
+        Cors:
+          AllowOrigins:
+            - '*'
+          AllowMethods:
+            - GET
+            - POST
+          AllowHeaders:
+            - Content-Type
+            - Authorization
+            - X-Session-ID
+          MaxAge: 300
+      
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: '*'
+      
+      Tags:
+        Application: ai-qa-agent
+        Component: streaming
+        Environment: production
+
+  # HTTP API for non-streaming endpoints
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowOrigins:
+          - '*'
+        AllowMethods:
+          - GET
+          - POST
+          - OPTIONS
+          - DELETE
+        AllowHeaders:
+          - Content-Type
+          - Authorization
+          - X-Session-ID
+        MaxAge: 300
+      Tags:
+        Application: ai-qa-agent
+        Environment: production
 
 Outputs:
-  AIQAAgentApi:
-    Description: "API Gateway endpoint URL for AI QA Agent function"
-    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
-  AIQAAgentFunction:
-    Description: "AI QA Agent Lambda Function ARN"
+  # Non-streaming API
+  ApiUrl:
+    Description: HTTP API endpoint URL (non-streaming endpoints like /health, /agent/chat, /agent/history)
+    Value: !Sub 'https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com'
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiUrl'
+  
+  ApiFunctionArn:
+    Description: ARN of the main Lambda function
     Value: !GetAtt AIQAAgentFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-FunctionArn'
+  
+  # Streaming API
+  StreamingFunctionUrl:
+    Description: Lambda Function URL for streaming responses (/agent/stream) - Use this in agent-interface.html production config
+    Value: !GetAtt StreamingFunctionUrl.FunctionUrl
+    Export:
+      Name: !Sub '${AWS::StackName}-StreamingUrl'
+  
+  StreamingFunctionArn:
+    Description: ARN of the streaming Lambda function
+    Value: !GetAtt StreamingFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-StreamingArn'

@@ -78,9 +78,12 @@ function findRoute(method: string, path: string): Route | undefined {
  * Route incoming request to appropriate handler
  */
 export async function routeRequest(event: APIGatewayProxyEvent, context: Context): Promise<APIGatewayProxyResult> {
-  const { httpMethod, path } = event;
+  // Extract method and path - support both HTTP API v1 and v2
+  const eventAny = event as any;
+  const httpMethod = event.httpMethod || eventAny.requestContext?.http?.method || 'GET';
+  const path = event.path || eventAny.requestContext?.http?.path || eventAny.rawPath || '/';
   
-  logger.debug('Routing request', { method: httpMethod, path });
+  logger.debug('Routing request', { method: httpMethod, path, eventType: eventAny.version || 'v1' });
 
   // Handle CORS preflight requests
   if (httpMethod === HttpMethod.OPTIONS) {

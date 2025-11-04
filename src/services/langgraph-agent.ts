@@ -627,8 +627,8 @@ export async function processQuestion(question: string, threadId?: string): Prom
 }
 
 /**
- * Stream process question - yields chunks as they're generated
- * Now uses the same ReAct agent with website search tool for consistency
+ * Stream process question - yields chunks as they're generated (token by token)
+ * Uses direct model streaming for true incremental responses
  */
 export async function* processQuestionStream(question: string, threadId?: string): AsyncGenerator<string> {
   try {
@@ -636,97 +636,70 @@ export async function* processQuestionStream(question: string, threadId?: string
 
     const configThreadId = threadId || `thread-${Date.now()}`;
 
-    // Use ReAct agent with tools if website search is enabled (same as non-streaming)
-    if (config.ai.agent.websiteSearchEnabled && config.ai.agent.sitemapUrl) {
-      logger.debug('Using ReAct agent with website search tool (streaming mode)');
-      
-      const reactAgent = createReactAgentWithTools();
-      
-      // Stream from ReAct agent
-      const stream = await reactAgent.stream(
-        {
-          messages: [new HumanMessage(question)],
-        },
-        {
-          configurable: {
-            thread_id: configThreadId,
-          },
-        }
-      );
+    // For true streaming, we need to use model.stream() directly
+    // ReAct agents don't support token-by-token streaming
+    const model = createAgentModel();
 
-      let fullResponse = '';
+    // Check if we should search website first
+    if (config.ai.agent.websiteSearchEnabled && config.ai.agent.sitemapUrl) {
+      logger.debug('Fetching website content before streaming response');
       
-      // Process stream chunks from ReAct agent
+      // Fetch website content first (non-streaming)
+      const websiteContent = await searchWebsiteSitemap(question);
+      
+      // Build system prompt with website context
+      const systemPrompt = `You are a helpful AI assistant for customer support.
+
+I have retrieved the following information from the company website:
+
+${websiteContent}
+
+Please use this information to answer the customer's question. Be helpful, professional, and friendly.
+Always cite the source URL when using website information.`;
+
+      // Stream the response with website context
+      const messages: BaseMessage[] = [
+        new SystemMessage(systemPrompt),
+        new HumanMessage(question),
+      ];
+
+      logger.debug('Streaming response with website context');
+      
+      const stream = await model.stream(messages);
+      
       for await (const chunk of stream) {
-        // ReAct agent returns chunks with different structure
-        // chunk.agent.messages can be a BaseMessage or BaseMessage[]
-        if (chunk.agent?.messages) {
-          const messages = Array.isArray(chunk.agent.messages) 
-            ? chunk.agent.messages 
-            : [chunk.agent.messages];
-          
-          const lastMessage = messages[messages.length - 1];
-          
-          // Check if lastMessage is a BaseMessage with content
-          if (lastMessage && typeof lastMessage === 'object' && 'content' in lastMessage) {
-            const content = lastMessage.content;
-            if (typeof content === 'string' && content && !fullResponse.includes(content)) {
-              const newContent = content.substring(fullResponse.length);
-              if (newContent) {
-                fullResponse = content;
-                yield newContent;
-                logger.debug('Stream chunk yielded', { size: newContent.length });
-              }
-            }
-          }
+        const content = chunk.content;
+        if (typeof content === 'string' && content) {
+          yield content;
+          logger.debug('Stream chunk yielded', { size: content.length });
         }
       }
 
-      logger.info('Question processed with ReAct agent (streaming)', { 
-        answerLength: fullResponse.length, 
+      logger.info('Question processed with streaming (with website search)', { 
         threadId: configThreadId 
       });
     } else {
-      // Fallback: Use standard LangGraph agent without tools (streaming)
-      logger.debug('Using standard streaming (no website search)');
+      // Stream without website search
+      logger.debug('Streaming response without website search');
       
-      const agent = createLangGraphAgent();
-      
-      const stream = await agent.stream(
-        {
-          messages: [new HumanMessage(question)],
-        },
-        {
-          configurable: {
-            thread_id: configThreadId,
-          },
-        }
-      );
+      const systemPrompt = `You are a helpful AI assistant. Answer the following question clearly and concisely.`;
 
-      let fullResponse = '';
+      const messages: BaseMessage[] = [
+        new SystemMessage(systemPrompt),
+        new HumanMessage(question),
+      ];
+
+      const stream = await model.stream(messages);
       
       for await (const chunk of stream) {
-        // Extract answer from chunk
-        if (chunk.answer?.messages) {
-          const messages = chunk.answer.messages;
-          const lastMessage = messages[messages.length - 1];
-          
-          if (lastMessage && typeof lastMessage.content === 'string') {
-            const content = lastMessage.content;
-            if (content && !fullResponse.includes(content)) {
-              const newContent = content.substring(fullResponse.length);
-              if (newContent) {
-                fullResponse = content;
-                yield newContent;
-                logger.debug('Stream chunk yielded', { size: newContent.length });
-              }
-            }
-          }
+        const content = chunk.content;
+        if (typeof content === 'string' && content) {
+          yield content;
+          logger.debug('Stream chunk yielded', { size: content.length });
         }
       }
 
-      logger.info('Question processed with standard agent (streaming)', { 
-        answerLength: fullResponse.length, 
+      logger.info('Question processed with streaming (no website search)', { 
         threadId: configThreadId 
       });
     }

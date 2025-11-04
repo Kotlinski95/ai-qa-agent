@@ -11,6 +11,9 @@ dist/
 .env
 .env.local
 
+# SAM configuration with secrets (NEVER commit this!)
+samconfig.toml
+
 # IDE
 .vscode/settings.json
 

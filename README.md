@@ -1,52 +1,56 @@
-# AI QA Agent Lambda Fun```
-├── src/
-│   ├── index.ts          # Main Lambda handler
-│   ├── config/           # Configuration and environment variables
-│   ├── handlers/         # Route handlers (health, qa)
-│   ├── services/         # LangChain service integration
-│   ├── router/           # Request routing
-│   ├── utils/            # Utilities (validation, response, logging)
-│   └── types/            # TypeScript interfaces
-├── dist/                 # Compiled JavaScript output (generated)
-├── .env.template         # Environment variables template
-├── AWS_ENVIRONMENT_SETUP.md # AWS Lambda setup guide
-├── package.json          # Dependencies including LangChain
-├── tsconfig.json         # TypeScript configuration
-└── postman-collection.json # Postman testing collection
-``` TypeScript-based AWS Lambda function for AI-powered question answering using **LangChain.js** and **OpenAI**.
+# AI QA Agent Lambda Function
+
+TypeScript-based AWS Lambda function for AI-powered question answering using **LangGraph**, **LangChain.js**, **OpenAI**, and **Pinecone**.
+
+## 🚀 Quick Start
+
+### Local Development
+```bash
+# Install dependencies
+npm install --legacy-peer-deps
+
+# Start development server
+npm run start:local
+
+# Open in browser
+open http://localhost:3000/agent-interface.html
+```
+
+### Deploy to AWS
+```bash
+# One-command deployment
+npm run deploy
+
+# Or deploy with pre-configured settings
+npm run deploy:quick
+
+# View logs
+npm run logs          # Main function logs
+npm run logs:stream   # Streaming function logs
+```
+
+See [DEPLOY.md](./DEPLOY.md) for detailed deployment instructions.
 
 ## 🤖 AI Integration
 
+- **LangGraph**: Advanced agent workflows with state management
 - **LangChain.js**: Modern LLM integration framework
-- **OpenAI GPT**: Powered by OpenAI's ChatGPT models (gpt-4o-mini by default)
-- **Intelligent Fallbacks**: Graceful degradation to placeholder responses
-- **Configurable Models**: Support for different OpenAI models via environment variables
+- **OpenAI GPT**: Powered by gpt-4o-mini (configurable)
+- **Pinecone**: Vector database for semantic caching (24h cache duration)
+- **Website Search**: Automatic sitemap crawling and vector similarity search
+- **Streaming Responses**: Token-by-token streaming via Lambda Function URLs
 
 ## 🚀 Features
 
+- **LangGraph Agent**: Intelligent multi-step reasoning with website search
 - **TypeScript Support**: Full type safety with AWS Lambda types
-- **LangChain Integration**: Professional LLM integration with structured prompts
-- **OpenAI ChatGPT**: Real AI responses powered by OpenAI API
-- **Error Handling**: Comprehensive error handling and logging with fallbacks
-- **CORS Enabled**: Pre-configured for API Gateway integration
-- **Environment Variables**: Secure configuration via AWS Lambda environment variables
-- **Health Checks**: AI service status monitoring
-- **Development Tools**: Build scripts and local testing server
-
-## 📁 Project Structure
-
-```
-├── src/
-│   └── index.ts          # TypeScript Lambda handler
-├── dist/                 # Compiled JavaScript output (generated)
-├── package.json          # Dependencies and build scripts
-├── tsconfig.json         # TypeScript configuration
-└── .gitignore           # Git ignore rules
-```
-
-## ⚙️ Configuration
-
-### Required Environment Variables
+- **Pinecone Caching**: Smart caching to avoid re-fetching website content
+- **Streaming API**: Real-time token-by-token responses (Lambda Function URLs)
+- **Non-Streaming API**: Traditional request/response (HTTP API Gateway)
+- **Error Handling**: Comprehensive error handling and logging
+- **CORS Enabled**: Pre-configured for browser access
+- **Health Checks**: AI service and memory usage monitoring
+- **Development Tools**: Local dev server with hot reload
 
 To use OpenAI integration, you need to set these environment variables:
 

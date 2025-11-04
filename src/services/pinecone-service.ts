@@ -69,8 +69,9 @@ export async function initialize(): Promise<void> {
     const index = state.pinecone.index(config.ai.pinecone.indexName);
 
     // Initialize vector store
+    // Using 'as any' to avoid type conflicts between different @pinecone-database/pinecone versions
     state.vectorStore = await PineconeStore.fromExistingIndex(state.embeddings, {
-      pineconeIndex: index,
+      pineconeIndex: index as any,
       namespace: config.ai.pinecone.namespace,
     });
 

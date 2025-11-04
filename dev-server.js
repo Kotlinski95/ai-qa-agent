@@ -133,8 +133,13 @@ async function processRequest(req, res, body) {
     // Call the Lambda handler
     const result = await handler(event, context);
     
-    // Send response
-    res.writeHead(result.statusCode, result.headers);
+    // Send response with Content-Length and explicit Connection: close for Postman compatibility
+    const headers = {
+      ...result.headers,
+      'Content-Length': Buffer.byteLength(result.body),
+      'Connection': 'close'
+    };
+    res.writeHead(result.statusCode, headers);
     res.end(result.body);
     
     console.log(`✅ ${result.statusCode} - ${req.method} ${req.url}`);
