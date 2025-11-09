@@ -1,4 +1,5 @@
 import type { ValidationErrorData, AppErrorData, ValidationError, AppError } from '@/types/errors';
+import { HTTP_STATUS } from '../constants/index';
 
 export function createValidationError(
   message: string,
@@ -30,14 +31,14 @@ export function throwValidationError(
   const error = new Error(message) as ValidationError;
   error.name = 'ValidationError';
   error.code = code;
-  if (field) error.field = field;
+  error.field = field;
   throw error;
 }
 
 export function createAppError(
   message: string,
   code: string = 'APP_ERROR',
-  statusCode: number = 500
+  statusCode: number = HTTP_STATUS.INTERNAL_SERVER_ERROR
 ): AppErrorData {
   return {
     message,
@@ -49,7 +50,7 @@ export function createAppError(
 export function throwAppError(
   message: string,
   code: string = 'APP_ERROR',
-  statusCode: number = 500
+  statusCode: number = HTTP_STATUS.INTERNAL_SERVER_ERROR
 ): never {
   const error = new Error(message) as AppError;
   error.name = 'AppError';

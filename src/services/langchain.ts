@@ -4,6 +4,7 @@ import { StringOutputParser } from '@langchain/core/output_parsers';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
 import { config } from '@config/index';
 import { logger } from '@utils/logger';
+import { CONTENT_LIMITS } from '../constants/index';
 
 function createChatModel(): ChatOpenAI {
   if (!config.ai.openai.apiKey) {
@@ -62,7 +63,7 @@ export async function* generateAnswerStream(
     }
     logger.info('LangChain streaming response completed', {
       responseLength: fullResponse.length,
-      questionPreview: question.substring(0, 50),
+      questionPreview: question.substring(0, CONTENT_LIMITS.FIFTY_LIMIT),
     });
   } catch (error) {
     logger.error('LangChain streaming service error', error);
@@ -160,7 +161,7 @@ export async function testConnection(): Promise<boolean> {
     const isConnected = response.toLowerCase().includes('ok');
     logger.info('OpenAI connection test result', {
       success: isConnected,
-      response: response.substring(0, 50),
+      response: response.substring(0, CONTENT_LIMITS.FIFTY_LIMIT),
     });
     return isConnected;
   } catch (error) {

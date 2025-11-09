@@ -4,6 +4,7 @@ import type { HealthResponse } from '@/types/index';
 import { HttpStatusCode } from '@/types/index';
 import { config } from '@config/index';
 import { logger } from '@utils/logger';
+import { MEMORY_SIZES } from '../constants/index';
 
 export async function healthHandler(
   event: APIGatewayProxyEvent,
@@ -41,10 +42,10 @@ async function performHealthChecks(): Promise<boolean> {
   try {
     const lambdaMemoryLimitMB = parseInt(process.env.AWS_LAMBDA_FUNCTION_MEMORY_SIZE || '512');
     const memoryUsage = process.memoryUsage();
-    const rssMB = memoryUsage.rss / 1024 / 1024;
-    const heapUsedMB = memoryUsage.heapUsed / 1024 / 1024;
-    const heapTotalMB = memoryUsage.heapTotal / 1024 / 1024;
-    const memoryUtilization = (rssMB / lambdaMemoryLimitMB) * 100;
+    const rssMB = memoryUsage.rss / MEMORY_SIZES.KILOBYTE / MEMORY_SIZES.KILOBYTE;
+    const heapUsedMB = memoryUsage.heapUsed / MEMORY_SIZES.KILOBYTE / MEMORY_SIZES.KILOBYTE;
+    const heapTotalMB = memoryUsage.heapTotal / MEMORY_SIZES.KILOBYTE / MEMORY_SIZES.KILOBYTE;
+    const memoryUtilization = (rssMB / lambdaMemoryLimitMB) * MEMORY_SIZES.HUNDRED_MB;
     logger.debug('Memory usage check', {
       rss: `${rssMB.toFixed(1)}MB`,
       heapUsed: `${heapUsedMB.toFixed(1)}MB`,
@@ -52,7 +53,7 @@ async function performHealthChecks(): Promise<boolean> {
       lambdaLimit: `${lambdaMemoryLimitMB}MB`,
       utilization: `${memoryUtilization.toFixed(1)}%`,
     });
-    if (memoryUtilization > 90) {
+    if (memoryUtilization > MEMORY_SIZES.NINETY_PERCENT) {
       logger.warn('High memory usage detected', {
         utilization: memoryUtilization,
         usedMB: rssMB.toFixed(2),

@@ -25,7 +25,10 @@ export interface SearchResult {
 }
 
 export interface SearchOptions {
-  k?: number; // number of results
-  threshold?: number; // similarity threshold
-  filter?: Record<string, JsonValue>; // metadata filters
+  // Number of results
+  k?: number;
+  // Similarity threshold
+  threshold?: number;
+  // Metadata filters
+  filter?: Record<string, JsonValue>;
 }

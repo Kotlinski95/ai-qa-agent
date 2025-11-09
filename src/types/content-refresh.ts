@@ -2,7 +2,7 @@ export interface ContentRefreshConfig {
   batchSize: number;
   maxConcurrentRequests: number;
   delayBetweenBatches: number;
-  forceRefresh: boolean; // If true, refreshes all content regardless of age
+  forceRefresh: boolean;
 }
 
 export interface ScheduledEvent {

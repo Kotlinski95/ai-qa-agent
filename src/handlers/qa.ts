@@ -6,10 +6,12 @@ import {
   addResponseMetadata,
 } from '@utils/response';
 import { validateQARequest, sanitizeInput, isValidationError } from '@utils/validation';
+import { randomDelay } from '@utils/timing';
 import type { QAResponse } from '@/types/index';
 import { HttpStatusCode } from '@/types/index';
 import { config } from '@config/index';
 import { logDebug, logger, logInfo, logWarn, logError } from '@utils/logger';
+import { CONTENT_LIMITS, TIMEOUTS } from '../constants/index';
 
 export async function qaHandler(
   event: APIGatewayProxyEvent,
@@ -55,7 +57,9 @@ export async function qaHandler(
 async function processQuestion(question: string, context?: string): Promise<string> {
   try {
     logDebug('Starting question processing with LangChain', {
-      questionPreview: question.substring(0, 50) + (question.length > 50 ? '...' : ''),
+      questionPreview:
+        question.substring(0, CONTENT_LIMITS.FIFTY_LIMIT) +
+        (question.length > CONTENT_LIMITS.FIFTY_LIMIT ? '...' : ''),
       hasContext: !!context,
       aiProvider: 'LangChain + OpenAI',
     });
@@ -63,7 +67,7 @@ async function processQuestion(question: string, context?: string): Promise<stri
       hasApiKey: !!config.ai.openai.apiKey,
       apiKeyLength: config.ai.openai.apiKey ? config.ai.openai.apiKey.length : 0,
       apiKeyPreview: config.ai.openai.apiKey
-        ? `${config.ai.openai.apiKey.substring(0, 10)}...`
+        ? `${config.ai.openai.apiKey.substring(0, CONTENT_LIMITS.TEN_LIMIT)}...`
         : 'none',
       envVarExists: !!process.env.OPENAI_API_KEY,
       envVarLength: process.env.OPENAI_API_KEY ? process.env.OPENAI_API_KEY.length : 0,
@@ -101,7 +105,7 @@ async function processQuestion(question: string, context?: string): Promise<stri
 }
 
 async function generatePlaceholderAnswer(question: string, context?: string): Promise<string> {
-  await new Promise(resolve => setTimeout(resolve, 100 + Math.random() * 200));
+  await randomDelay(CONTENT_LIMITS.PREVIEW_LENGTH, TIMEOUTS.QUERY_TIMEOUT_MS);
   const questionLower = question.toLowerCase();
   if (questionLower.includes('lambda') || questionLower.includes('aws')) {
     return `Regarding AWS Lambda: AWS Lambda is a serverless compute service that lets you run code without provisioning or managing servers. Your question "${question}" touches on serverless architecture.`;

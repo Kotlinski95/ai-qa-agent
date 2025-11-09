@@ -6,10 +6,104 @@ import { createReactAgent } from '@langchain/langgraph/prebuilt';
 import { config } from '@config/index';
 import { logger } from '@utils/logger';
 import { fetchWebsiteContent } from '@utils/website-content-extractor';
+import { fetchSitemapUrls } from '@utils/sitemap-fetcher';
 import * as pineconeService from './pinecone-service';
-import fetch from 'node-fetch';
 import { AgentStateAnnotation } from '@/types/agent';
 import type { AgentState } from '@/types/agent';
+import { CONTENT_LIMITS } from '../constants/index';
+
+async function fetchPageWithFallback(
+  url: string
+): Promise<{ url: string; title: string; content: string } | null> {
+  try {
+    const content = await fetchWebsiteContent(url);
+    const title = url.split('/').filter(Boolean).pop()?.replace(/-/g, ' ') || 'Page';
+    return { url, title, content };
+  } catch {
+    logger.debug('❌ Failed to fetch page in fallback', { url });
+    return null;
+  }
+}
+
+async function trySearchAfterFallback(query: string): Promise<string | null> {
+  const fallbackResults = await pineconeService.searchSimilar(
+    query,
+    CONTENT_LIMITS.SEARCH_RESULTS_LIMIT
+  );
+  if (fallbackResults.length > 0) {
+    const formattedResults = fallbackResults
+      .map((page, index) => {
+        return `\n[Result ${index + 1}] 📄 From: ${page.url}\n🎯 Relevance Score: ${page.score.toFixed(CONTENT_LIMITS.FOUR_DECIMAL_PLACES)}\n📝 Content:\n${page.content.substring(0, CONTENT_LIMITS.CONTENT_SNIPPET)}...\n`;
+      })
+      .join('\n');
+
+    return `✅ Found ${fallbackResults.length} relevant pages (from fallback fetch):\n${formattedResults}`;
+  }
+  return null;
+}
+
+async function fetchPageForDirectSearch(url: string): Promise<{ url: string; content: string }> {
+  try {
+    const content = await fetchWebsiteContent(url);
+    return { url, content };
+  } catch {
+    logger.debug('Failed to fetch page', { url });
+    return { url, content: '' };
+  }
+}
+
+async function processFallbackContent(
+  urlsToFetch: string[],
+  query: string
+): Promise<string | null> {
+  const limitedUrlsToFetch = urlsToFetch.slice(0, CONTENT_LIMITS.MAX_FALLBACK_PAGES);
+
+  const pageContents: Array<{ url: string; title: string; content: string }> = [];
+
+  for (let i = 0; i < limitedUrlsToFetch.length; i += CONTENT_LIMITS.BATCH_SIZE) {
+    const batch = limitedUrlsToFetch.slice(i, i + CONTENT_LIMITS.BATCH_SIZE);
+    const batchResults = await Promise.all(batch.map(fetchPageWithFallback));
+
+    const validResults = batchResults.filter(
+      (page): page is { url: string; title: string; content: string } =>
+        page !== null && page.content.length > 0
+    );
+    pageContents.push(...validResults);
+  }
+
+  if (pageContents.length > 0) {
+    await pineconeService.storePagesContent(pageContents);
+    logger.info('💾 STORED FALLBACK CONTENT', {
+      count: pageContents.length,
+      action: 'FALLBACK_CACHE_WRITE',
+    });
+
+    const fallbackResult = await trySearchAfterFallback(query);
+    if (fallbackResult) {
+      return fallbackResult;
+    }
+  }
+
+  return null;
+}
+
+async function processFallbackContentAfterPineconeCheck(
+  pageUrls: string[],
+  query: string
+): Promise<string | null> {
+  const urlsToFetch = await pineconeService.getUrlsToFetch(pageUrls);
+  if (urlsToFetch.length > 0) {
+    logger.warn('🔄 FALLBACK: Some content missing/stale - fetching during request', {
+      totalPages: pageUrls.length,
+      cachedPages: pageUrls.length - urlsToFetch.length,
+      pagesToFetch: urlsToFetch.length,
+      source: 'WEBSITE_DIRECT_FALLBACK',
+    });
+
+    return await processFallbackContent(urlsToFetch, query);
+  }
+  return null;
+}
 
 function createAgentModel(): ChatOpenAI {
   if (!config.ai.openai.apiKey) {
@@ -21,80 +115,6 @@ function createAgentModel(): ChatOpenAI {
     temperature: config.ai.openai.temperature,
     maxTokens: config.ai.openai.maxTokens,
   });
-}
-
-async function fetchSitemapUrls(
-  sitemapUrl: string,
-  visited: Set<string> = new Set()
-): Promise<string[]> {
-  if (visited.has(sitemapUrl)) {
-    logger.debug('Sitemap already visited, skipping', { sitemapUrl });
-    return [];
-  }
-  visited.add(sitemapUrl);
-  try {
-    logger.debug('Fetching sitemap', { sitemapUrl });
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), config.ai.agent.websiteTimeout);
-    const response = await fetch(sitemapUrl, {
-      headers: {
-        'User-Agent': config.ai.agent.websiteUserAgent,
-      },
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
-    if (!response.ok) {
-      logger.error('Sitemap fetch failed', {
-        status: response.status,
-        statusText: response.statusText,
-      });
-      return [];
-    }
-    const xml = await response.text();
-    const isSitemapIndex = xml.includes('<sitemapindex');
-    if (isSitemapIndex) {
-      logger.debug('Detected sitemap index, fetching nested sitemaps', { sitemapUrl });
-      const sitemapRegex = /<loc>(.*?)<\/loc>/g;
-      const nestedSitemapUrls: string[] = [];
-      let match;
-      while ((match = sitemapRegex.exec(xml)) !== null) {
-        nestedSitemapUrls.push(match[1].trim());
-      }
-      logger.info('Found nested sitemaps', {
-        count: nestedSitemapUrls.length,
-        sitemaps: nestedSitemapUrls,
-      });
-      const allUrls: string[] = [];
-      for (const nestedSitemapUrl of nestedSitemapUrls) {
-        const urls = await fetchSitemapUrls(nestedSitemapUrl, visited);
-        allUrls.push(...urls);
-        if (allUrls.length >= config.ai.agent.maxPagesToSearch) {
-          break;
-        }
-      }
-      logger.info('Total URLs extracted from sitemap index', {
-        count: allUrls.length,
-        indexUrl: sitemapUrl,
-      });
-      return allUrls.slice(0, config.ai.agent.maxPagesToSearch);
-    } else {
-      const urlRegex = /<loc>(.*?)<\/loc>/g;
-      const urls: string[] = [];
-      let match;
-      while ((match = urlRegex.exec(xml)) !== null) {
-        urls.push(match[1].trim());
-        if (urls.length >= config.ai.agent.maxPagesToSearch) {
-          break;
-        }
-      }
-      logger.info('Sitemap URLs extracted', { count: urls.length, sitemapUrl });
-      return urls;
-    }
-  } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-    logger.error('Sitemap fetch error', { sitemapUrl, error: errorMsg });
-    return [];
-  }
 }
 
 async function searchWebsiteSitemap(query: string): Promise<string> {
@@ -115,19 +135,22 @@ async function searchWebsiteSitemap(query: string): Promise<string> {
 
         // 🚀 OPTIMIZATION: Try Pinecone search first (should be pre-populated by scheduled job)
         logger.debug('⚡ Attempting Pinecone search (should be pre-populated by scheduler)');
-        const results = await pineconeService.searchSimilar(query, 3);
+        const results = await pineconeService.searchSimilar(
+          query,
+          CONTENT_LIMITS.SEARCH_RESULTS_LIMIT
+        );
 
         if (results.length > 0) {
           logger.info('🔍 SEARCH COMPLETED - Results from Pre-populated Pinecone', {
             query,
             resultsFound: results.length,
             source: 'PINECONE_SCHEDULED_CACHE',
-            topScore: results[0]?.score.toFixed(4),
+            topScore: results[0]?.score.toFixed(CONTENT_LIMITS.FOUR_DECIMAL_PLACES),
           });
 
           const formattedResults = results
             .map((page, index) => {
-              return `\n[Result ${index + 1}] 📄 From: ${page.url}\n🎯 Relevance Score: ${page.score.toFixed(4)}\n📝 Content:\n${page.content.substring(0, 800)}...\n`;
+              return `\n[Result ${index + 1}] 📄 From: ${page.url}\n🎯 Relevance Score: ${page.score.toFixed(CONTENT_LIMITS.FOUR_DECIMAL_PLACES)}\n📝 Content:\n${page.content.substring(0, CONTENT_LIMITS.CONTENT_SNIPPET)}...\n`;
             })
             .join('\n');
 
@@ -142,62 +165,9 @@ async function searchWebsiteSitemap(query: string): Promise<string> {
           return 'No pages found in sitemap.';
         }
 
-        const urlsToFetch = await pineconeService.getUrlsToFetch(pageUrls);
-        if (urlsToFetch.length > 0) {
-          logger.warn('🔄 FALLBACK: Some content missing/stale - fetching during request', {
-            totalPages: pageUrls.length,
-            cachedPages: pageUrls.length - urlsToFetch.length,
-            pagesToFetch: urlsToFetch.length,
-            source: 'WEBSITE_DIRECT_FALLBACK',
-          });
-
-          // Limit fallback fetching to avoid timeout
-          const limitedUrlsToFetch = urlsToFetch.slice(0, 5); // Max 5 pages to avoid timeout
-
-          const pageContents: Array<{ url: string; title: string; content: string }> = [];
-          const batchSize = 2; // Smaller batch for fallback
-
-          for (let i = 0; i < limitedUrlsToFetch.length; i += batchSize) {
-            const batch = limitedUrlsToFetch.slice(i, i + batchSize);
-            const batchResults = await Promise.all(
-              batch.map(async url => {
-                try {
-                  const content = await fetchWebsiteContent(url);
-                  const title = url.split('/').filter(Boolean).pop()?.replace(/-/g, ' ') || 'Page';
-                  return { url, title, content };
-                } catch {
-                  logger.debug('❌ Failed to fetch page in fallback', { url });
-                  return null;
-                }
-              })
-            );
-
-            const validResults = batchResults.filter(
-              (page): page is { url: string; title: string; content: string } =>
-                page !== null && page.content.length > 0
-            );
-            pageContents.push(...validResults);
-          }
-
-          if (pageContents.length > 0) {
-            await pineconeService.storePagesContent(pageContents);
-            logger.info('💾 STORED FALLBACK CONTENT', {
-              count: pageContents.length,
-              action: 'FALLBACK_CACHE_WRITE',
-            });
-          }
-
-          // Try search again after storing new content
-          const fallbackResults = await pineconeService.searchSimilar(query, 3);
-          if (fallbackResults.length > 0) {
-            const formattedResults = fallbackResults
-              .map((page, index) => {
-                return `\n[Result ${index + 1}] 📄 From: ${page.url}\n🎯 Relevance Score: ${page.score.toFixed(4)}\n📝 Content:\n${page.content.substring(0, 800)}...\n`;
-              })
-              .join('\n');
-
-            return `✅ Found ${fallbackResults.length} relevant pages (from fallback fetch):\n${formattedResults}`;
-          }
+        const fallbackResult = await processFallbackContentAfterPineconeCheck(pageUrls, query);
+        if (fallbackResult) {
+          return fallbackResult;
         }
 
         return `No relevant content found on the website for query: "${query}". Content may need refresh - check scheduled job.`;
@@ -214,24 +184,13 @@ async function searchWebsiteSitemap(query: string): Promise<string> {
     });
 
     const pageUrls = await fetchSitemapUrls(config.ai.agent.sitemapUrl);
-    const limitedUrls = pageUrls.slice(0, 5); // Limit to avoid timeout
+    const limitedUrls = pageUrls.slice(0, CONTENT_LIMITS.MAX_DIRECT_SEARCH_PAGES);
 
     const pageContents: Array<{ url: string; content: string }> = [];
-    const batchSize = 2;
 
-    for (let i = 0; i < limitedUrls.length; i += batchSize) {
-      const batch = limitedUrls.slice(i, i + batchSize);
-      const batchResults = await Promise.all(
-        batch.map(async url => {
-          try {
-            const content = await fetchWebsiteContent(url);
-            return { url, content };
-          } catch {
-            logger.debug('Failed to fetch page', { url });
-            return { url, content: '' };
-          }
-        })
-      );
+    for (let i = 0; i < limitedUrls.length; i += CONTENT_LIMITS.BATCH_SIZE) {
+      const batch = limitedUrls.slice(i, i + CONTENT_LIMITS.BATCH_SIZE);
+      const batchResults = await Promise.all(batch.map(fetchPageForDirectSearch));
       pageContents.push(...batchResults.filter(page => page.content.length > 0));
     }
 
@@ -242,7 +201,7 @@ async function searchWebsiteSitemap(query: string): Promise<string> {
     const queryKeywords = query
       .toLowerCase()
       .split(/\s+/)
-      .filter(w => w.length > 2);
+      .filter(w => w.length > CONTENT_LIMITS.MIN_WORD_LENGTH);
     const scoredPages = pageContents.map(page => {
       const contentLower = page.content.toLowerCase();
       const matchCount = queryKeywords.reduce((count, keyword) => {
@@ -254,7 +213,7 @@ async function searchWebsiteSitemap(query: string): Promise<string> {
     const topPages = scoredPages
       .filter(page => page.score > 0)
       .sort((a, b) => b.score - a.score)
-      .slice(0, 3);
+      .slice(0, CONTENT_LIMITS.SEARCH_RESULTS_LIMIT);
 
     if (topPages.length === 0) {
       return `No relevant content found on the website for query: "${query}"`;
@@ -262,7 +221,7 @@ async function searchWebsiteSitemap(query: string): Promise<string> {
 
     const results = topPages
       .map((page, index) => {
-        return `\n[Result ${index + 1}] From: ${page.url}\nRelevance Score: ${page.score}\nContent:\n${page.content.substring(0, 800)}...\n`;
+        return `\n[Result ${index + 1}] From: ${page.url}\nRelevance Score: ${page.score}\nContent:\n${page.content.substring(0, CONTENT_LIMITS.CONTENT_SNIPPET)}...\n`;
       })
       .join('\n---\n');
 
@@ -294,7 +253,9 @@ async function routerNode(state: AgentState): Promise<Partial<AgentState>> {
   try {
     const lastMessage = state.messages[state.messages.length - 1];
     const questionText = lastMessage?.content?.toString() || '';
-    logger.debug('Router node processing', { questionText: questionText.substring(0, 100) });
+    logger.debug('Router node processing', {
+      questionText: questionText.substring(0, CONTENT_LIMITS.PREVIEW_LENGTH),
+    });
     const shouldSearchWebsite = config.ai.agent.websiteSearchEnabled && config.ai.agent.sitemapUrl;
     if (shouldSearchWebsite) {
       logger.debug('Router decision: search website sitemap');
@@ -313,7 +274,7 @@ async function fetchWebsiteNode(state: AgentState): Promise<Partial<AgentState>>
     const lastMessage = state.messages[state.messages.length - 1];
     const questionText = lastMessage?.content?.toString() || '';
     logger.debug('Website search node: searching sitemap', {
-      questionText: questionText.substring(0, 100),
+      questionText: questionText.substring(0, CONTENT_LIMITS.PREVIEW_LENGTH),
     });
     const searchResults = await searchWebsiteSitemap(questionText);
     logger.debug('Website search completed', { resultLength: searchResults.length });
@@ -413,54 +374,66 @@ When a customer asks a question:
   return agent;
 }
 
+async function processWithReactAgent(question: string, configThreadId: string): Promise<string> {
+  logger.debug('Using ReAct agent with website search tool');
+  const reactAgent = createReactAgentWithTools();
+  const result = await reactAgent.invoke(
+    {
+      messages: [new HumanMessage(question)],
+    },
+    {
+      configurable: {
+        thread_id: configThreadId,
+      },
+    }
+  );
+  const lastMessage = result.messages[result.messages.length - 1];
+  const answer = lastMessage?.content?.toString() || 'No response generated';
+  logger.info('Question processed with ReAct agent', {
+    answerLength: answer.length,
+    threadId: configThreadId,
+  });
+  return answer;
+}
+
+async function processWithStandardAgent(question: string, configThreadId: string): Promise<string> {
+  logger.debug('Using standard LangGraph agent');
+  const agent = createLangGraphAgent();
+  const initialState: AgentState = {
+    messages: [new HumanMessage(question)],
+    websiteContent: '',
+  };
+  const result = await agent.invoke(initialState, {
+    configurable: {
+      thread_id: configThreadId,
+    },
+  });
+  const lastMessage = result.messages[result.messages.length - 1];
+  const answer = lastMessage?.content?.toString() || 'No response generated';
+  logger.info('Question processed with standard agent', {
+    answerLength: answer.length,
+    threadId: configThreadId,
+  });
+  return answer;
+}
+
 export async function processQuestion(question: string, threadId?: string): Promise<string> {
   try {
-    logger.debug('Processing question', { question: question.substring(0, 100), threadId });
+    logger.debug('Processing question', {
+      question: question.substring(0, CONTENT_LIMITS.PREVIEW_LENGTH),
+      threadId,
+    });
     const configThreadId = threadId || `thread-${Date.now()}`;
     logger.debug('Config check', {
       websiteSearchEnabled: config.ai.agent.websiteSearchEnabled,
       sitemapUrl: config.ai.agent.sitemapUrl,
       willUseReact: config.ai.agent.websiteSearchEnabled && config.ai.agent.sitemapUrl,
     });
+
     if (config.ai.agent.websiteSearchEnabled && config.ai.agent.sitemapUrl) {
-      logger.debug('Using ReAct agent with website search tool');
-      const reactAgent = createReactAgentWithTools();
-      const result = await reactAgent.invoke(
-        {
-          messages: [new HumanMessage(question)],
-        },
-        {
-          configurable: {
-            thread_id: configThreadId,
-          },
-        }
-      );
-      const lastMessage = result.messages[result.messages.length - 1];
-      const answer = lastMessage?.content?.toString() || 'No response generated';
-      logger.info('Question processed with ReAct agent', {
-        answerLength: answer.length,
-        threadId: configThreadId,
-      });
-      return answer;
+      return await processWithReactAgent(question, configThreadId);
     } else {
-      logger.debug('Using standard LangGraph agent');
-      const agent = createLangGraphAgent();
-      const initialState: AgentState = {
-        messages: [new HumanMessage(question)],
-        websiteContent: '',
-      };
-      const result = await agent.invoke(initialState, {
-        configurable: {
-          thread_id: configThreadId,
-        },
-      });
-      const lastMessage = result.messages[result.messages.length - 1];
-      const answer = lastMessage?.content?.toString() || 'No response generated';
-      logger.info('Question processed with standard agent', {
-        answerLength: answer.length,
-        threadId: configThreadId,
-      });
-      return answer;
+      return await processWithStandardAgent(question, configThreadId);
     }
   } catch (error) {
     logger.error(
@@ -471,53 +444,69 @@ export async function processQuestion(question: string, threadId?: string): Prom
   }
 }
 
+async function* streamWithWebsiteContent(
+  question: string,
+  configThreadId: string
+): AsyncGenerator<string> {
+  logger.debug('Fetching website content before streaming response');
+  const websiteContent = await searchWebsiteSitemap(question);
+  const systemPrompt = `You are a helpful AI assistant for customer support.
+I have retrieved the following information from the company website:
+${websiteContent}
+Please use this information to answer the customer's question. Be helpful, professional, and friendly.
+Always cite the source URL when using website information.`;
+  const messages: BaseMessage[] = [new SystemMessage(systemPrompt), new HumanMessage(question)];
+  logger.debug('Streaming response with website context');
+  const model = createAgentModel();
+  const stream = await model.stream(messages);
+  for await (const chunk of stream) {
+    const content = chunk.content;
+    if (typeof content === 'string' && content) {
+      yield content;
+      logger.debug('Stream chunk yielded', { size: content.length });
+    }
+  }
+  logger.info('Question processed with streaming (with website search)', {
+    threadId: configThreadId,
+  });
+}
+
+async function* streamWithoutWebsiteContent(
+  question: string,
+  configThreadId: string
+): AsyncGenerator<string> {
+  logger.debug('Streaming response without website search');
+  const systemPrompt = `You are a helpful AI assistant. Answer the following question clearly and concisely.`;
+  const messages: BaseMessage[] = [new SystemMessage(systemPrompt), new HumanMessage(question)];
+  const model = createAgentModel();
+  const stream = await model.stream(messages);
+  for await (const chunk of stream) {
+    const content = chunk.content;
+    if (typeof content === 'string' && content) {
+      yield content;
+      logger.debug('Stream chunk yielded', { size: content.length });
+    }
+  }
+  logger.info('Question processed with streaming (no website search)', {
+    threadId: configThreadId,
+  });
+}
+
 export async function* processQuestionStream(
   question: string,
   threadId?: string
 ): AsyncGenerator<string> {
   try {
     logger.debug('Processing question with streaming', {
-      question: question.substring(0, 100),
+      question: question.substring(0, CONTENT_LIMITS.PREVIEW_LENGTH),
       threadId,
     });
     const configThreadId = threadId || `thread-${Date.now()}`;
-    const model = createAgentModel();
+
     if (config.ai.agent.websiteSearchEnabled && config.ai.agent.sitemapUrl) {
-      logger.debug('Fetching website content before streaming response');
-      const websiteContent = await searchWebsiteSitemap(question);
-      const systemPrompt = `You are a helpful AI assistant for customer support.
-I have retrieved the following information from the company website:
-${websiteContent}
-Please use this information to answer the customer's question. Be helpful, professional, and friendly.
-Always cite the source URL when using website information.`;
-      const messages: BaseMessage[] = [new SystemMessage(systemPrompt), new HumanMessage(question)];
-      logger.debug('Streaming response with website context');
-      const stream = await model.stream(messages);
-      for await (const chunk of stream) {
-        const content = chunk.content;
-        if (typeof content === 'string' && content) {
-          yield content;
-          logger.debug('Stream chunk yielded', { size: content.length });
-        }
-      }
-      logger.info('Question processed with streaming (with website search)', {
-        threadId: configThreadId,
-      });
+      yield* streamWithWebsiteContent(question, configThreadId);
     } else {
-      logger.debug('Streaming response without website search');
-      const systemPrompt = `You are a helpful AI assistant. Answer the following question clearly and concisely.`;
-      const messages: BaseMessage[] = [new SystemMessage(systemPrompt), new HumanMessage(question)];
-      const stream = await model.stream(messages);
-      for await (const chunk of stream) {
-        const content = chunk.content;
-        if (typeof content === 'string' && content) {
-          yield content;
-          logger.debug('Stream chunk yielded', { size: content.length });
-        }
-      }
-      logger.info('Question processed with streaming (no website search)', {
-        threadId: configThreadId,
-      });
+      yield* streamWithoutWebsiteContent(question, configThreadId);
     }
   } catch (error) {
     logger.error(
@@ -528,31 +517,39 @@ Always cite the source URL when using website information.`;
   }
 }
 
+function logQuestionDebug(sessionId: string, question: string, operation: string): void {
+  logger.debug(`Session agent ${operation}`, {
+    sessionId,
+    question: question.substring(0, CONTENT_LIMITS.PREVIEW_LENGTH),
+  });
+}
+
+function logAgentError(operation: string, error: unknown): void {
+  logger.error(
+    `Session agent ${operation} error`,
+    error instanceof Error ? error : new Error(String(error))
+  );
+}
+
 export function createSessionAgent(sessionId: string) {
   const conversationHistory: BaseMessage[] = [];
   return {
     async ask(question: string): Promise<string> {
       try {
-        logger.debug('Session agent ask', { sessionId, question: question.substring(0, 100) });
+        logQuestionDebug(sessionId, question, 'ask');
         conversationHistory.push(new HumanMessage(question));
         const answer = await processQuestion(question, sessionId);
         conversationHistory.push(new AIMessage(answer));
         return answer;
       } catch (error) {
-        logger.error(
-          'Session agent ask error',
-          error instanceof Error ? error : new Error(String(error))
-        );
+        logAgentError('ask', error);
         throw error;
       }
     },
 
     async *askStream(question: string): AsyncGenerator<string> {
       try {
-        logger.debug('Session agent ask stream', {
-          sessionId,
-          question: question.substring(0, 100),
-        });
+        logQuestionDebug(sessionId, question, 'ask stream');
         conversationHistory.push(new HumanMessage(question));
         let fullAnswer = '';
         for await (const chunk of processQuestionStream(question, sessionId)) {
@@ -561,10 +558,7 @@ export function createSessionAgent(sessionId: string) {
         }
         conversationHistory.push(new AIMessage(fullAnswer));
       } catch (error) {
-        logger.error(
-          'Session agent ask stream error',
-          error instanceof Error ? error : new Error(String(error))
-        );
+        logAgentError('ask stream', error);
         yield `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
       }
     },

@@ -29,6 +29,7 @@
       "@utils/*": ["utils/*"],
       "@services/*": ["services/*"],
       "@handlers/*": ["handlers/*"],
+      "@/types": ["types"],
       "@/types/*": ["types/*"],
       "@router/*": ["router/*"]
     }

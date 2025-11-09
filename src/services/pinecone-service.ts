@@ -5,6 +5,9 @@ import { Document } from '@langchain/core/documents';
 import { config } from '@config/index';
 import { logger } from '@utils/logger';
 import type { WebsitePageMetadata, PineconeState } from '@/types/database';
+import { CONTENT_LIMITS, TIMEOUTS } from '../constants/index';
+
+const URL_PREVIEW_LENGTH = 60;
 
 let state: PineconeState = {
   pinecone: null,
@@ -55,7 +58,7 @@ export async function isCached(url: string): Promise<boolean> {
     return false;
   }
   try {
-    const results = await state.vectorStore.similaritySearch(url, 50);
+    const results = await state.vectorStore.similaritySearch(url, CONTENT_LIMITS.FIFTY_LIMIT);
     const exactMatch = results.find((doc: { metadata: unknown }) => {
       const metadata = doc.metadata as WebsitePageMetadata;
       return metadata.url === url;
@@ -66,12 +69,21 @@ export async function isCached(url: string): Promise<boolean> {
     }
     const metadata = exactMatch.metadata as WebsitePageMetadata;
     const fetchedAt = metadata?.fetchedAt || 0;
-    const cacheDurationMs = config.ai.pinecone.cacheDurationHours * 60 * 60 * 1000;
+    const cacheDurationMs =
+      config.ai.pinecone.cacheDurationHours *
+      TIMEOUTS.SECONDS_PER_MINUTE *
+      TIMEOUTS.MINUTES_PER_HOUR *
+      TIMEOUTS.MILLISECONDS_PER_SECOND;
     const ageMs = Date.now() - fetchedAt;
     const isStale = ageMs > cacheDurationMs;
-    const ageHours = Math.round(ageMs / 1000 / 60 / 60);
+    const ageHours = Math.round(
+      ageMs /
+        TIMEOUTS.MILLISECONDS_PER_SECOND /
+        TIMEOUTS.SECONDS_PER_MINUTE /
+        TIMEOUTS.MINUTES_PER_HOUR
+    );
     logger.debug('Cache check', {
-      url: url.substring(0, 60) + '...',
+      url: `${url.substring(0, URL_PREVIEW_LENGTH)}...`,
       cached: !isStale,
       ageHours,
       cacheDurationHours: config.ai.pinecone.cacheDurationHours,
@@ -80,7 +92,7 @@ export async function isCached(url: string): Promise<boolean> {
     return !isStale;
   } catch (error) {
     logger.debug('Error checking cache, assuming not cached', {
-      url: url.substring(0, 60) + '...',
+      url: `${url.substring(0, URL_PREVIEW_LENGTH)}...`,
       error: error instanceof Error ? error.message : String(error),
     });
     return false;

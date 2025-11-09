@@ -1,9 +1,11 @@
 import { config } from '@config/index';
 import { logger } from '@utils/logger';
 import { fetchWebsiteContent } from '@utils/website-content-extractor';
+import { fetchSitemapUrls } from '@utils/sitemap-fetcher';
+import { delay } from '@utils/timing';
 import * as pineconeService from './pinecone-service';
-import fetch from 'node-fetch';
 import type { ContentRefreshConfig, ScheduledEvent, RefreshStats } from '@/types/content-refresh';
+import { HTTP_STATUS, CONTENT_LIMITS, TIMEOUTS } from '../constants/index';
 
 /**
  * Scheduled content refresh service
@@ -11,98 +13,11 @@ import type { ContentRefreshConfig, ScheduledEvent, RefreshStats } from '@/types
  */
 
 const DEFAULT_CONFIG: ContentRefreshConfig = {
-  batchSize: 5,
-  maxConcurrentRequests: 3,
-  delayBetweenBatches: 2000, // 2 seconds
+  batchSize: CONTENT_LIMITS.BATCH_SIZE,
+  maxConcurrentRequests: CONTENT_LIMITS.MAX_CONCURRENT_REQUESTS,
+  delayBetweenBatches: TIMEOUTS.BATCH_DELAY,
   forceRefresh: false,
 };
-
-async function fetchSitemapUrls(
-  sitemapUrl: string,
-  visited: Set<string> = new Set()
-): Promise<string[]> {
-  if (visited.has(sitemapUrl)) {
-    logger.debug('Sitemap already visited, skipping', { sitemapUrl });
-    return [];
-  }
-  visited.add(sitemapUrl);
-
-  try {
-    logger.debug('Fetching sitemap for scheduled refresh', { sitemapUrl });
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), config.ai.agent.websiteTimeout);
-
-    const response = await fetch(sitemapUrl, {
-      headers: {
-        'User-Agent': config.ai.agent.websiteUserAgent,
-      },
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      logger.error('Scheduled sitemap fetch failed', {
-        status: response.status,
-        statusText: response.statusText,
-      });
-      return [];
-    }
-
-    const xml = await response.text();
-    const isSitemapIndex = xml.includes('<sitemapindex');
-
-    if (isSitemapIndex) {
-      logger.debug('Detected sitemap index, fetching nested sitemaps', { sitemapUrl });
-      const sitemapRegex = /<loc>(.*?)<\/loc>/g;
-      const nestedSitemapUrls: string[] = [];
-      let match;
-
-      while ((match = sitemapRegex.exec(xml)) !== null) {
-        nestedSitemapUrls.push(match[1].trim());
-      }
-
-      logger.info('Found nested sitemaps for scheduled refresh', {
-        count: nestedSitemapUrls.length,
-        sitemaps: nestedSitemapUrls,
-      });
-
-      const allUrls: string[] = [];
-      for (const nestedSitemapUrl of nestedSitemapUrls) {
-        const urls = await fetchSitemapUrls(nestedSitemapUrl, visited);
-        allUrls.push(...urls);
-      }
-
-      logger.info('Total URLs extracted from sitemap index for scheduled refresh', {
-        count: allUrls.length,
-        indexUrl: sitemapUrl,
-      });
-      return allUrls;
-    } else {
-      const urlRegex = /<loc>(.*?)<\/loc>/g;
-      const urls: string[] = [];
-      let match;
-
-      while ((match = urlRegex.exec(xml)) !== null) {
-        urls.push(match[1].trim());
-      }
-
-      logger.info('Sitemap URLs extracted for scheduled refresh', {
-        count: urls.length,
-        sitemapUrl,
-      });
-      return urls;
-    }
-  } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-    logger.error('Scheduled sitemap fetch error', { sitemapUrl, error: errorMsg });
-    return [];
-  }
-}
-
-async function delay(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
 
 export async function refreshWebsiteContent(
   refreshConfig: Partial<ContentRefreshConfig> = {}
@@ -135,7 +50,9 @@ export async function refreshWebsiteContent(
       throw new Error('Sitemap URL not configured');
     }
 
-    const allUrls = await fetchSitemapUrls(config.ai.agent.sitemapUrl);
+    const allUrls = await fetchSitemapUrls(config.ai.agent.sitemapUrl, {
+      context: 'scheduled refresh',
+    });
     stats.totalUrls = allUrls.length;
 
     logger.info('📋 URLs discovered for scheduled refresh', {
@@ -234,7 +151,11 @@ export async function refreshWebsiteContent(
 
     logger.info('✅ SCHEDULED CONTENT REFRESH COMPLETED', {
       stats,
-      durationMinutes: (stats.duration / 1000 / 60).toFixed(2),
+      durationMinutes: (
+        stats.duration /
+        TIMEOUTS.MILLISECONDS_PER_SECOND /
+        TIMEOUTS.SECONDS_PER_MINUTE
+      ).toFixed(2),
     });
 
     return { success: true, stats };
@@ -246,7 +167,11 @@ export async function refreshWebsiteContent(
     logger.error('❌ SCHEDULED CONTENT REFRESH FAILED', {
       error: errorMsg,
       stats,
-      durationMinutes: (stats.duration / 1000 / 60).toFixed(2),
+      durationMinutes: (
+        stats.duration /
+        TIMEOUTS.MILLISECONDS_PER_SECOND /
+        TIMEOUTS.SECONDS_PER_MINUTE
+      ).toFixed(2),
     });
 
     return { success: false, stats };
@@ -265,13 +190,13 @@ export async function scheduledRefreshHandler(event: ScheduledEvent): Promise<{
 
   const result = await refreshWebsiteContent({
     forceRefresh: event.forceRefresh || false,
-    batchSize: event.batchSize || 5,
-    maxConcurrentRequests: event.maxConcurrentRequests || 3,
-    delayBetweenBatches: event.delayBetweenBatches || 2000,
+    batchSize: event.batchSize || CONTENT_LIMITS.BATCH_SIZE,
+    maxConcurrentRequests: event.maxConcurrentRequests || CONTENT_LIMITS.MAX_CONCURRENT_REQUESTS,
+    delayBetweenBatches: event.delayBetweenBatches || TIMEOUTS.BATCH_DELAY,
   });
 
   return {
-    statusCode: result.success ? 200 : 500,
+    statusCode: result.success ? HTTP_STATUS.OK : HTTP_STATUS.INTERNAL_SERVER_ERROR,
     body: JSON.stringify({
       success: result.success,
       stats: result.stats,
