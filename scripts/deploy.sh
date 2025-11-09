@@ -9,6 +9,9 @@ echo "🚀 AI QA Agent Deployment Script"
 echo "=================================="
 echo ""
 
+# Change to project root directory
+cd "$(dirname "$0")/.."
+
 # Colors for output
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'

@@ -2,7 +2,8 @@
   "compilerOptions": {
     "target": "ES2022",
     "module": "ESNext",
-    "moduleResolution": "bundler",
+    "moduleResolution": "node",
+    "allowImportingTsExtensions": false,
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,
@@ -21,7 +22,16 @@
     "exactOptionalPropertyTypes": false,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
-    "allowUnreachableCode": false
+    "allowUnreachableCode": false,
+    "baseUrl": "./src",
+    "paths": {
+      "@config/*": ["config/*"],
+      "@utils/*": ["utils/*"],
+      "@services/*": ["services/*"],
+      "@handlers/*": ["handlers/*"],
+      "@/types/*": ["types/*"],
+      "@router/*": ["router/*"]
+    }
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "test-*.js", "dev-server.js"]

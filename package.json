@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "type": "module",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && tsc-alias && node scripts/fix-extensions.js",
     "watch": "tsc --watch",
     "clean": "rm -rf dist",
     "start:local": "npm run build && node dev-server.js",
@@ -14,16 +14,39 @@
     "test:health": "npm run build && node src/tests/test-health.js",
     "cache:clear": "npm run build && node dist/utils/check-duplicates.js clear",
     "cache:check": "npm run build && node dist/utils/check-duplicates.js check",
-    "deploy": "bash deploy.sh",
-    "deploy:build": "npm run build && sam build",
-    "deploy:quick": "npm run build && sam deploy",
     "validate": "sam validate",
     "logs": "sam logs --stack-name ai-qa-agent --name AIQAAgentFunction --tail",
-    "logs:stream": "sam logs --stack-name ai-qa-agent --name StreamingFunction --tail"
+    "logs:stream": "sam logs --stack-name ai-qa-agent --name StreamingFunction --tail",
+    "logs:refresh": "sam logs --stack-name ai-qa-agent --name ContentRefreshFunction --tail",
+    "setup": "bash scripts/setup-sam.sh",
+    "setup:sam": "bash scripts/setup-sam.sh",
+    "deploy": "bash scripts/deploy.sh",
+    "deploy:enhanced": "bash scripts/deploy-with-refresh.sh",
+    "deploy:build": "npm run build && sam build",
+    "deploy:quick": "npm run build && sam deploy",
+    "refresh": "bash scripts/trigger-refresh.sh",
+    "refresh:daily": "bash scripts/trigger-refresh.sh daily",
+    "refresh:weekly": "bash scripts/trigger-refresh.sh weekly",
+    "refresh:fast": "bash scripts/trigger-refresh.sh fast",
+    "lint": "eslint src/**/*.ts",
+    "lint:fix": "eslint src/**/*.ts --fix",
+    "format": "prettier --write src/**/*.{ts,js,json}",
+    "format:check": "prettier --check src/**/*.{ts,js,json}",
+    "typecheck": "tsc --noEmit",
+    "pre-commit": "lint-staged",
+    "prepare": "husky"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.1",
     "@types/aws-lambda": "^8.10.143",
     "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.46.3",
+    "@typescript-eslint/parser": "^8.46.3",
+    "eslint": "^9.39.1",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.6",
+    "prettier": "^3.6.2",
+    "tsc-alias": "^1.8.16",
     "typescript": "^5.0.0"
   },
   "dependencies": {
@@ -36,5 +59,14 @@
     "langchain": "^0.3.9",
     "node-fetch": "^3.3.2",
     "zod": "^3.25.76"
+  },
+  "lint-staged": {
+    "src/**/*.{ts,js}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "src/**/*.{json,md}": [
+      "prettier --write"
+    ]
   }
 }

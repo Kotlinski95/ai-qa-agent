@@ -18,18 +18,30 @@ open http://localhost:3000/agent-interface.html
 
 ### Deploy to AWS
 ```bash
-# One-command deployment
+# Enhanced deployment with content refresh
+npm run deploy:enhanced
+
+# Basic deployment
 npm run deploy
 
-# Or deploy with pre-configured settings
+# Quick deployment (build + deploy)
 npm run deploy:quick
 
 # View logs
 npm run logs          # Main function logs
 npm run logs:stream   # Streaming function logs
+npm run logs:refresh  # Content refresh logs
 ```
 
-See [DEPLOY.md](./DEPLOY.md) for detailed deployment instructions.
+### Content Management
+```bash
+# Refresh website content
+npm run refresh:weekly    # Full refresh
+npm run refresh:daily     # Incremental refresh
+npm run refresh:fast      # Fast refresh for testing
+```
+
+See [DEPLOY.md](./DEPLOY.md) for detailed deployment instructions and [scripts/README.md](./scripts/README.md) for all available commands.
 
 ## 🤖 AI Integration
 

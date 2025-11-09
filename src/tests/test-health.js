@@ -1,11 +1,11 @@
+/* eslint-env node */
+/* eslint-disable no-undef */
 import { handler } from '../../dist/index.js';
-
-// Mock health check event
 const healthCheckEvent = {
   httpMethod: 'GET',
   path: '/health',
   headers: {
-    'Accept': 'application/json',
+    Accept: 'application/json',
   },
   queryStringParameters: null,
   pathParameters: null,
@@ -18,10 +18,9 @@ const healthCheckEvent = {
     path: '/health',
     accountId: '123456789012',
     resourceId: 'test-resource',
-    resourcePath: '/health'
-  }
+    resourcePath: '/health',
+  },
 };
-
 const mockContext = {
   awsRequestId: 'health-check-id',
   functionName: 'ai-qa-agent',
@@ -29,10 +28,8 @@ const mockContext = {
   memoryLimitInMB: '512',
   getRemainingTimeInMillis: () => 30000,
 };
-
 async function testHealthCheck() {
   console.log('🏥 Testing Health Check Endpoint...\n');
-  
   try {
     const result = await handler(healthCheckEvent, mockContext);
     console.log('✅ Health check passed!');
@@ -43,5 +40,4 @@ async function testHealthCheck() {
     console.error(error);
   }
 }
-
 testHealthCheck();

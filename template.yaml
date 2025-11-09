@@ -87,7 +87,7 @@ Resources:
       FunctionName: ai-qa-agent-streaming
       Description: AI QA Agent with LangGraph - Streaming endpoint for real-time token-by-token responses
       CodeUri: .
-      Handler: dist/streaming-handler.handler
+      Handler: dist/handlers/streaming-handler.handler
       
       FunctionUrlConfig:
         AuthType: NONE
@@ -117,6 +117,57 @@ Resources:
         Application: ai-qa-agent
         Component: streaming
         Environment: production
+
+  # Scheduled Content Refresh Function
+  ContentRefreshFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: ai-qa-agent-content-refresh
+      Description: Scheduled content refresh for Pinecone index - keeps website content up to date
+      CodeUri: .
+      Handler: dist/handlers/content-refresh-handler.handler
+      Timeout: 900  # 15 minutes for content refresh
+      MemorySize: 2048  # More memory for content processing
+      
+      Events:
+        DailyRefresh:
+          Type: Schedule
+          Properties:
+            Schedule: 'cron(0 2 * * ? *)'  # Daily at 2 AM UTC
+            Description: Daily content refresh at 2 AM UTC
+            Input: |
+              {
+                "forceRefresh": false,
+                "batchSize": 5,
+                "delayBetweenBatches": 2000
+              }
+        
+        WeeklyFullRefresh:
+          Type: Schedule  
+          Properties:
+            Schedule: 'cron(0 1 ? * SUN *)'  # Weekly on Sunday at 1 AM UTC
+            Description: Weekly full content refresh on Sunday at 1 AM UTC
+            Input: |
+              {
+                "forceRefresh": true,
+                "batchSize": 3,
+                "delayBetweenBatches": 3000
+              }
+      
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: '*'
+      
+      Tags:
+        Application: ai-qa-agent
+        Component: content-refresh
+        Environment: production
+        Schedule: daily
 
   # HTTP API for non-streaming endpoints
   HttpApi:
@@ -165,3 +216,10 @@ Outputs:
     Value: !GetAtt StreamingFunction.Arn
     Export:
       Name: !Sub '${AWS::StackName}-StreamingArn'
+  
+  # Content Refresh Function
+  ContentRefreshFunctionArn:
+    Description: ARN of the content refresh Lambda function
+    Value: !GetAtt ContentRefreshFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-ContentRefreshArn'
