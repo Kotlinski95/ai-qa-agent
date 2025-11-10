@@ -5,7 +5,8 @@ import { Document } from '@langchain/core/documents';
 import { config } from '@config/index';
 import { logger } from '@utils/logger';
 import type { WebsitePageMetadata, PineconeState } from '@/types/database';
-import { CONTENT_LIMITS, TIMEOUTS } from '../constants/index';
+import type { PageContent } from '@/types/company';
+import { CONTENT_LIMITS, TIMEOUTS } from '@constants/index';
 
 const URL_PREVIEW_LENGTH = 60;
 
@@ -114,17 +115,62 @@ async function deleteByUrl(url: string): Promise<void> {
   }
 }
 
-export async function storePagesContent(
-  pages: Array<{ url: string; title: string; content: string }>
-): Promise<void> {
-  if (!state.isInitialized || !state.vectorStore || !state.pinecone) {
-    logger.warn('Vector store not initialized, skipping storage');
-    return;
-  }
+/**
+ * Clean content for optimal Pinecone storage and search
+ * Removes HTML entities and formatting issues that can interfere with search
+ */
+function cleanContentForPinecone(content: string): string {
+  return (
+    content
+      // Remove HTML entities that can interfere with search
+      .replace(/&ndash;/g, '–')
+      .replace(/&mdash;/g, '—')
+      .replace(/&rarr;/g, '→')
+      .replace(/&larr;/g, '←')
+      .replace(/&darr;/g, '↓')
+      .replace(/&uarr;/g, '↑')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#x27;/g, "'")
+      .replace(/&#x2F;/g, '/')
+      .replace(/&nbsp;/g, ' ')
+      // Polish character HTML entities
+      .replace(/&oacute;/g, 'ó')
+      .replace(/&#324;/g, 'ń')
+      .replace(/&#380;/g, 'ź')
+      .replace(/&#322;/g, 'ł')
+      .replace(/&#261;/g, 'ą')
+      .replace(/&#263;/g, 'ć')
+      .replace(/&#281;/g, 'ę')
+      .replace(/&#347;/g, 'ś')
+      .replace(/&#378;/g, 'ż')
+      .replace(/&Oacute;/g, 'Ó')
+      .replace(/&#323;/g, 'Ń')
+      .replace(/&#377;/g, 'Ź')
+      .replace(/&#321;/g, 'Ł')
+      .replace(/&#260;/g, 'Ą')
+      .replace(/&#262;/g, 'Ć')
+      .replace(/&#280;/g, 'Ę')
+      .replace(/&#346;/g, 'Ś')
+      .replace(/&#379;/g, 'Ż')
+      // Convert newlines to spaces for better search
+      .replace(/\n+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+  );
+}
+
+export async function storePagesInPinecone(pages: PageContent[]): Promise<void> {
   try {
+    await initialize();
+    if (!state.vectorStore) {
+      throw new Error('Pinecone vector store not initialized');
+    }
     const timestamp = Date.now();
-    const urlsToUpdate = pages.map(p => p.url);
-    logger.debug('Checking for existing entries to update', { urls: urlsToUpdate.length });
+    logger.debug('Deleting existing pages before upserting', { count: pages.length });
+
     for (const page of pages) {
       try {
         await deleteByUrl(page.url);
@@ -133,17 +179,22 @@ export async function storePagesContent(
       }
     }
     const documents: Document[] = pages.map(page => {
+      // Clean content for optimal Pinecone storage and search
+      const cleanContent = cleanContentForPinecone(page.content);
+      const cleanTitle = cleanContentForPinecone(page.title);
+
       return new Document({
-        pageContent: `${page.title}\n\n${page.content}`,
+        pageContent: `${cleanTitle} ${cleanContent}`,
         metadata: {
           url: page.url,
-          title: page.title,
-          content: page.content,
+          title: cleanTitle,
+          content: cleanContent,
           fetchedAt: timestamp,
           source: 'website-sitemap',
         } as WebsitePageMetadata,
       });
     });
+
     logger.info('Upserting pages in Pinecone (delete old + insert new)', {
       count: documents.length,
     });
@@ -155,6 +206,9 @@ export async function storePagesContent(
     throw error;
   }
 }
+
+// Alias for backward compatibility
+export const storePagesContent = storePagesInPinecone;
 
 export async function searchSimilar(
   query: string,

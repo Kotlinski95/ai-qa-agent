@@ -4,25 +4,37 @@ import { StringOutputParser } from '@langchain/core/output_parsers';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
 import { config } from '@config/index';
 import { logger } from '@utils/logger';
-import { CONTENT_LIMITS } from '../constants/index';
+import { CONTENT_LIMITS } from '@constants/index';
 
-function createChatModel(): ChatOpenAI {
+/**
+ * Create a standard ChatOpenAI model with project configuration
+ * @param overrides - Optional overrides for specific use cases
+ * @returns Configured ChatOpenAI instance
+ */
+export function createChatModel(
+  overrides?: Partial<{
+    maxTokens: number;
+    temperature: number;
+    streaming: boolean;
+  }>
+): ChatOpenAI {
   if (!config.ai.openai.apiKey) {
     throw new Error('OpenAI API key is required. Set OPENAI_API_KEY environment variable.');
   }
   const chatModel = new ChatOpenAI({
     apiKey: config.ai.openai.apiKey,
     model: config.ai.openai.model,
-    temperature: config.ai.openai.temperature,
-    maxTokens: config.ai.openai.maxTokens,
+    temperature: overrides?.temperature ?? config.ai.openai.temperature,
+    maxTokens: overrides?.maxTokens ?? config.ai.openai.maxTokens,
     timeout: config.ai.openai.timeout,
-    streaming: config.ai.enableStreaming,
+    streaming: overrides?.streaming ?? config.ai.enableStreaming,
   });
-  logger.info('ChatOpenAI model created', {
+  logger.debug('ChatOpenAI model created', {
     model: config.ai.openai.model,
-    temperature: config.ai.openai.temperature,
-    maxTokens: config.ai.openai.maxTokens,
-    streaming: config.ai.enableStreaming,
+    temperature: overrides?.temperature ?? config.ai.openai.temperature,
+    maxTokens: overrides?.maxTokens ?? config.ai.openai.maxTokens,
+    streaming: overrides?.streaming ?? config.ai.enableStreaming,
+    hasOverrides: !!overrides,
   });
   return chatModel;
 }

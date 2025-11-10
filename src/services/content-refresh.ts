@@ -5,7 +5,7 @@ import { fetchSitemapUrls } from '@utils/sitemap-fetcher';
 import { delay } from '@utils/timing';
 import * as pineconeService from './pinecone-service';
 import type { ContentRefreshConfig, ScheduledEvent, RefreshStats } from '@/types/content-refresh';
-import { HTTP_STATUS, CONTENT_LIMITS, TIMEOUTS } from '../constants/index';
+import { HTTP_STATUS, CONTENT_LIMITS, TIMEOUTS } from '@constants/index';
 
 /**
  * Scheduled content refresh service

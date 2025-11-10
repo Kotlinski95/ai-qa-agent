@@ -1,4 +1,4 @@
-import { HTTP_STATUS } from '../constants/index';
+import { HTTP_STATUS } from '@constants/index';
 
 export enum HttpMethod {
   GET = 'GET',

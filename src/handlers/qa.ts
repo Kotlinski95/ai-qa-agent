@@ -11,7 +11,7 @@ import type { QAResponse } from '@/types/index';
 import { HttpStatusCode } from '@/types/index';
 import { config } from '@config/index';
 import { logDebug, logger, logInfo, logWarn, logError } from '@utils/logger';
-import { CONTENT_LIMITS, TIMEOUTS } from '../constants/index';
+import { CONTENT_LIMITS, TIMEOUTS } from '@constants/index';
 
 export async function qaHandler(
   event: APIGatewayProxyEvent,

@@ -1,5 +1,5 @@
 import type { ValidationErrorData, AppErrorData, ValidationError, AppError } from '@/types/errors';
-import { HTTP_STATUS } from '../constants/index';
+import { HTTP_STATUS } from '@constants/index';
 
 export function createValidationError(
   message: string,

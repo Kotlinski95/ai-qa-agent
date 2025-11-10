@@ -29,9 +29,13 @@
       "@utils/*": ["utils/*"],
       "@services/*": ["services/*"],
       "@handlers/*": ["handlers/*"],
+      "@constants/*": ["constants/*"],
       "@/types": ["types"],
       "@/types/*": ["types/*"],
-      "@router/*": ["router/*"]
+      "@router/*": ["router/*"],
+      "@agent/core/*": ["agent/core/*"],
+      "@agent/prompts/*": ["agent/prompts/*"],
+      "@agent/nodes/*": ["agent/nodes/*"]
     }
   },
   "include": ["src/**/*"],

@@ -9,3 +9,4 @@ export * from './content-refresh';
 export * from './common';
 export * from './streaming-lambda';
 export * from './lambda-runtime';
+export * from './company';

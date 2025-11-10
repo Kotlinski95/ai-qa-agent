@@ -4,7 +4,7 @@ import type { HealthResponse } from '@/types/index';
 import { HttpStatusCode } from '@/types/index';
 import { config } from '@config/index';
 import { logger } from '@utils/logger';
-import { MEMORY_SIZES } from '../constants/index';
+import { MEMORY_SIZES } from '@constants/index';
 
 export async function healthHandler(
   event: APIGatewayProxyEvent,

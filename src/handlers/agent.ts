@@ -6,7 +6,7 @@ import { isValidationError } from '@utils/errors';
 import { sanitizeString } from '@utils/sanitizers';
 import { config } from '@config/index';
 import { getHeaders, getSSEHeaders } from '@config/headers';
-import { MEMORY_SIZES, HTTP_STATUS } from '../constants/index';
+import { MEMORY_SIZES, HTTP_STATUS } from '@constants/index';
 
 const agentSessions: Map<string, SessionAgent> = new Map();
 

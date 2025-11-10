@@ -1,7 +1,7 @@
 import fetch from 'node-fetch';
 import { config } from '@config/index';
 import { logger } from './logger';
-import { HTTP_STATUS } from '../constants/index';
+import { HTTP_STATUS } from '@constants/index';
 
 async function fetchHtmlContent(url: string): Promise<string> {
   logger.debug('Fetching website content', { url });
@@ -66,17 +66,46 @@ function extractMainContent(html: string): string {
 }
 
 function convertHtmlToText(html: string): string {
-  return html
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#x27;/g, "'")
-    .replace(/&#x2F;/g, '/')
-    .replace(/\s+/g, ' ')
-    .trim();
+  return (
+    html
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#x27;/g, "'")
+      .replace(/&#x2F;/g, '/')
+      .replace(/&ndash;/g, '–')
+      .replace(/&mdash;/g, '—')
+      .replace(/&rarr;/g, '→')
+      .replace(/&larr;/g, '←')
+      .replace(/&darr;/g, '↓')
+      .replace(/&uarr;/g, '↑')
+      // Polish character HTML entities
+      .replace(/&oacute;/g, 'ó')
+      .replace(/&#324;/g, 'ń')
+      .replace(/&#380;/g, 'ź')
+      .replace(/&#322;/g, 'ł')
+      .replace(/&#261;/g, 'ą')
+      .replace(/&#263;/g, 'ć')
+      .replace(/&#281;/g, 'ę')
+      .replace(/&#347;/g, 'ś')
+      .replace(/&#378;/g, 'ż')
+      .replace(/&Oacute;/g, 'Ó')
+      .replace(/&#323;/g, 'Ń')
+      .replace(/&#377;/g, 'Ź')
+      .replace(/&#321;/g, 'Ł')
+      .replace(/&#260;/g, 'Ą')
+      .replace(/&#262;/g, 'Ć')
+      .replace(/&#280;/g, 'Ę')
+      .replace(/&#346;/g, 'Ś')
+      .replace(/&#379;/g, 'Ż')
+      // Convert all newlines to spaces for better search indexing
+      .replace(/\n+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+  );
 }
 
 function truncateAndLogContent(

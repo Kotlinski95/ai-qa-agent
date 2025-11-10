@@ -1,9 +1,9 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
 import { validateQARequest, sanitizeInput, isValidationError } from '@utils/validation';
-import { HttpStatusCode } from '@/types/index';
-import { config } from '@config/index';
-import { getHeaders } from '@config/headers';
 import { logger } from '@utils/logger';
+import { config } from '@config/index';
+import { HttpStatusCode } from '@/types/index';
+import { getHeaders } from '@config/headers';
 
 export async function qaStreamHandler(
   event: APIGatewayProxyEvent,
